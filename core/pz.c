@@ -407,8 +407,10 @@ debug_handler (int sig)
     fprintf (stderr, "Saved: podzilla.oops\n");
     pz_touch_settings();
     pz_modules_cleanup();
-    fprintf (stderr, "Letting original sig go - expect crash\n");
+    fprintf (stderr, "Podzilla is dead - Rebotting in 2sec\n");
     signal (sig, SIG_DFL);
+    sleep(3);
+    pz_ipod_reboot();
     return;
 }
 #endif
