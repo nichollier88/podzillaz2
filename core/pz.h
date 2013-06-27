@@ -638,6 +638,7 @@ void pz_reset_idle_timer();
 #define MODULE_TESTING    (70)   /* don't warn for modules in beta */
 #define ENABLE_VTSWITCH   (71)   /* Enable VT switching. */
 #define ENABLE_WINDOWMGMT (72)   /* Enable window management. */
+#define HEADER (73)
 
 #define 	BATTERY_UPDATE_OFF (5)
 
