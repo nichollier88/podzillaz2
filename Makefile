@@ -47,7 +47,7 @@ endif
 
 ifdef IPOD
 CC = $(CROSS)-gcc
-LIBS += -Wl,-elf2flt -Wl,-whole-archive -lc `$(MYTTKCONF) --ipod --sdl --libs` contrib/ucdl/libuCdl.a -lintl `$(CC) -print-libgcc-file-name` -lsupc++ -Wl,-no-whole-archive -mapcs
+LIBS += -Wl,-elf2flt -Wl,-whole-archive -lc `$(MYTTKCONF) --ipod --sdl --libs` ../ucdl/libuCdl.a -lintl `$(CC) -print-libgcc-file-name` -lsupc++ -Wl,-no-whole-archive -mapcs
 CROSS ?= arm-uclinux-elf
 else
 ifeq ($(shell uname),Darwin)
@@ -124,7 +124,7 @@ ifdef IPOD
 	@$(CC) -Wl,-r -d -o podzilla.o core/built-in.o $(wildcard modules/built-in.o) $(LIBS)
 	@$(CROSS)-ld.real -T elf2flt.ld -Ur -o podzilla.elf podzilla.o
 	@echo " SYMS    podzilla"
-	@$(CROSS)-nm podzilla.elf | ./contrib/ucdl/symadd podzilla
+	@$(CROSS)-nm podzilla.elf | ../ucdl/symadd podzilla
 endif
 
 install:
@@ -194,8 +194,8 @@ clean:
 	@make clean -sC Kconfig
 	@echo " CLEAN  core"
 	@make clean -sC core
-	@echo " CLEAN  contrib/ucdl"
-	@make clean -sC contrib/ucdl
+	@echo " CLEAN  ../ucdl"
+	@make clean -sC ../ucdl
 	@echo " CLEAN  modules:"
 	@make clean -sC modules
 	@rm -f .message .target modules/.mods Config.in menu-strings.c
@@ -245,7 +245,7 @@ endif
 
 contrib:
 ifdef IPOD
-	@make -sC contrib/ucdl
+	@make -sC ../ucdl
 endif
 
 API.pdf: API.tex
