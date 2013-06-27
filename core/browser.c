@@ -36,8 +36,20 @@
 #include <errno.h>
 #include "pz.h"
 
+int (*init_mpd)();
+int (*kill_mpd)();
+
 static void wait_on_sigchld(int signal)
 { wait(NULL); }
+
+int mpd_available()
+{
+	if (!init_mpd)
+		init_mpd = pz_module_softdep("mpdc", "force_init");
+	if (!kill_mpd)
+		kill_mpd = pz_module_softdep("mpdc", "force_kill");	
+    return (!!init_mpd & !!kill_mpd);
+}
 
 void setup_sigchld_handler()
 {
@@ -100,6 +112,9 @@ void pz_execv(const char *path, char *const argv[])
 		pz_perror("child VT_WAITACTIVE");
 		goto err;
 	}
+        
+        /* Kill MPD music player */
+        if (mpd_available()) kill_mpd();
 
 	switch(pid = vfork()) {
 	case -1: /* error */
@@ -163,6 +178,9 @@ void pz_execv(const char *path, char *const argv[])
 		}
 		break;
 	}
+
+        /* init MPD music player */
+        if (mpd_available()) init_mpd();
 
 err:
 	close(tty0_fd);
