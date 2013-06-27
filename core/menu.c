@@ -150,7 +150,7 @@ static const char *boolean_options[] = {
 };
 
 static const char * transit_options[] = { 
-    N_("Off"), N_("Slow"), N_("Fast"), 0
+    N_("Off"), N_("Slow"), N_("Fast"), N_("Very Fast"), 0
 };
 
 static const char * verbosity_options[] = {

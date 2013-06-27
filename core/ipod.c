@@ -178,6 +178,9 @@ void pz_ipod_fix_setting (int setting, int value)
 		case 2:
 			ttk_set_transition_frames (8);
 			break;
+		case 3:
+			ttk_set_transition_frames (5);
+			break;	
 		}
 		break;
 	}
