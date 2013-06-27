@@ -263,6 +263,22 @@ static int is_ascii_file(const char *filename)
 	return 1;
 }
 
+int is_ext(const char *file, const char *ext)
+{
+	struct stat st;
+	stat (file, &st);
+	char *file_ext = strrchr(file, '.');
+	int length = strlen(file_ext);
+	if (length != strlen(ext)) return 0;
+	int i;
+	for (i = 0; i < length; i++) {
+		if ( file_ext[i] != ext[i] && file_ext[i] != ext[i]-32 ){
+			return 0;
+		}
+	}
+	return 1;
+}
+
 TWindow *pz_new_textview_window(char *filename)
 {
 	TWindow *ret;

@@ -471,6 +471,7 @@ void pz_dsp_close(pz_dsp_st *oss);
 
 
 /** File browser helper functions - browser.c **/
+int is_ext(const char *file, const char *ext);
 TWindow *pz_new_textview_window(char *filename);
 TWindow *pz_browser_open (const char *path);
 TWidget *pz_browser_get_actions (const char *path); // returns a menu widget
