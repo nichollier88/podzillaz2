@@ -238,15 +238,22 @@ void pz_menu_init()
 
     check_init();
     pz_menu_add_stub_group ("/Music", "Media");
-    pz_menu_add_stub_group ("/Now Playing", "Media");
+    pz_menu_add_stub_group ("/Photos", "Media");
+    pz_menu_add_stub_group ("/Videos", "Media");
     pz_menu_add_stub_group ("/Extras", "Utility");
-    pz_menu_add_stub_group ("/File Browser", "Utility");
     pz_menu_add_stub_group ("/Settings", "~System");
+    pz_menu_add_stub_group ("/File Browser", "Utility");
     pz_menu_add_stub_group ("/Run...", "Utility");
     pz_menu_add_stub_group ("/~Power", "~System");
+    pz_menu_add_stub_group ("/Now Playing", "Media");
 
     pz_menu_add_stub_group ("/Settings/About", "#General");
     pz_menu_add_stub_group ("/Settings/Credits", "#General");
+
+    pz_menu_add_stub_group ("/Settings/Appearance", "Interface" ); 
+    pz_menu_add_setting_group ("/Settings/Backlight Timer",  "System", BACKLIGHT_TIMER, pz_global_config, backlight_options);
+    pz_menu_add_setting_group ("/Settings/Clicker", "System", CLICKER, pz_global_config, 0);
+    pz_menu_add_action_group ("/Settings/Contrast", "System", set_contrast);
 
     pz_menu_add_stub_group ("/Settings/Date & Time", "System");
     pz_menu_add_stub ("/Settings/Date & Time/Clock");
@@ -258,14 +265,9 @@ void pz_menu_init()
     pz_menu_add_setting ("/Settings/Date & Time/Time Tick Noise", TIME_TICKER, pz_global_config, 0);
     pz_menu_add_setting_group ("/Settings/Repeat", "Music", REPEAT, pz_global_config, repeat_options);
     pz_menu_add_setting_group ("/Settings/Shuffle", "Music", SHUFFLE, pz_global_config, shuffle_options);
-    pz_menu_add_action_group ("/Settings/Contrast", "System", set_contrast);
     pz_menu_add_action_group ("/Settings/Wheel Sensitivity", "System", set_wheeldebounce);
-    pz_menu_add_setting_group ("/Settings/Backlight Timer",  "System", BACKLIGHT_TIMER, pz_global_config, backlight_options);
-    pz_menu_add_setting_group ("/Settings/Clicker", "System", CLICKER, pz_global_config, 0);
+
     pz_menu_add_setting_group ("/Settings/USB & FW Popup", "System", USB_FW_POPUP, pz_global_config, 0);
-
-    pz_menu_add_stub_group ("/Settings/Appearance", "Interface" );
-
 
     item = pz_menu_add_action ("/Settings/Appearance/Color Scheme", pz_select_color_scheme);
     item->flags |= TTK_MENU_ICON_SUB;
@@ -345,7 +347,7 @@ TWindow *pz_default_new_menu_window (TWidget *menu_wid)
     // If you don't want to directly use menu_wid, you can use ttk_menu_get_item() and friends.
     TWindow *ret = ttk_new_window();
     ttk_add_widget (ret, menu_wid);
-    ttk_window_title (ret, "podzilla");
+    ttk_window_title (ret, "Podzilla");
     return ret;
 }
 
