@@ -7,11 +7,15 @@
 
 #include "pz.h"
 
+#define path "/usr/lib/mpd/mpd"
+#define mpd_cfg "/etc/podzilla/modules/mpd/"
+#define conf "/etc/podzilla/modules/mpd/mpd.conf"
+#define db "/etc/podzilla/modules/mpd/mpddb"
+
 static PzModule *module;
 
-static void cleanup_mpd()
+static int send_command(char *str)
 {
-#ifdef IPOD
 	int sock;
 	struct hostent *he;
 	struct sockaddr_in addr;
@@ -23,12 +27,12 @@ static void cleanup_mpd()
 
 	if ((he = gethostbyname(hostname)) == NULL) {
 		herror(hostname);
-		return;
+		return 1;
 	}
 	
 	if ((sock = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
 		perror("socket");
-		return;
+		return 2;
 	}
 
 	addr.sin_family = AF_INET;
@@ -37,43 +41,22 @@ static void cleanup_mpd()
 	memset(&(addr.sin_zero), 0, 8);
 	if (connect(sock,(struct sockaddr *)&addr,sizeof(struct sockaddr))==-1){
 		perror("connect");
-		return;
+		close(sock);
+		return 3;
 	}
-	send(sock, "kill\n", 5, 0);
+	send(sock, str, strlen(str), 0);
+	send(sock, "\n", 1, 0);
 	close(sock);
-#endif
+	return 0;
 }
 
-static void check_conf(const char *filename)
+static void init_conf()
 {
-	FILE *fp;
-	char line[1024];
-
-	if ((fp = fopen(filename, "a+")) == NULL)
-		return;
-
-	while (fgets(line, 1024, fp)) {
-		if (!strncmp(line, "audio_output", 12)) {
-			fclose(fp);
-			return;
-		}
-	}
-	fputs("\naudio_output {\n\ttype \"oss\"\n\tname \"oss\"\n}\n", fp);
-	fclose(fp);
-}
-
-static char *init_conf(const char *filename)
-{
-	FILE *fp;
-	const char *path;
-	char iTunes = !access("/iPod_Control/Music", R_OK);
-	if ((fp = fopen(filename, "w")) == NULL)
-		return NULL;
-
-	path = pz_module_get_cfgpath(module, ""),
-	fprintf(fp,
+	if (!(access(conf, F_OK) == 0)) {
+		FILE *fconf = fopen(conf, "w");
+		fprintf(fconf,
 		"port 			\"6600\"\n"
-		"music_directory 	\"%s\"\n"
+		"music_directory 	\"/mnt\"\n"
 		"playlist_directory 	\"%s\"\n"
 		"log_file 		\"%smessages.log\"\n"
 		"error_file 		\"%serror.log\"\n"
@@ -84,48 +67,82 @@ static char *init_conf(const char *filename)
 		"state_file		\"%sstate\"\n"
 		"mixer_control		\"PCM\"\n\n"
 		"audio_output {\n\ttype \"oss\"\n\tname \"oss\"\n}\n",
-		iTunes ? "/iPod_Control/Music" : "/mnt",
-		path, path, path, path, path);
-	fclose(fp);
-	return (char *)filename;
+		mpd_cfg, mpd_cfg, mpd_cfg, mpd_cfg, mpd_cfg);
+		fclose(fconf);
+	}
 }
 
-static void init_mpd()
+static void create_db()
 {
-#ifdef IPOD
-	const char *path, *conf;
-	module = pz_register_module("mpd", cleanup_mpd);
-	path = pz_module_get_datapath(module, "mpd");
-	conf = pz_module_get_cfgpath(module, "mpd.conf");
+	if (!(access(db, F_OK) == 0)) {
+		FILE *fdb = fopen(db, "w");
+		fprintf(fdb,
+		"info_begin\n"
+    "mpd_version: mpd-ke\n"
+    "fs_charset: ISO-8859-1\n"
+    "info_end\n"
+    "songList begin\n"
+    "songList end\n");
+  	fclose(fdb);
+	}
+}
+
+static void init_loopback()
+{
 	switch (vfork()) {
-	case 0: execl("/sbin/ifconfig", "ifconfig", "lo", "127.0.0.1", NULL);
-	case -1: pz_perror("Unable to initialize loopback interface");
-		 break;
-	default: wait(NULL);
-		 break;
+		case 0:
+			execl("/bin/ifconfig", "ifconfig", "lo", "127.0.0.1", NULL);
+		case -1:
+			pz_perror("Unable to initialize loopback interface");
+			break;
+		default:
+			wait(NULL);
+			break;
 	}
-	if (access(conf, F_OK)) conf = init_conf(conf);
-	else {
-		check_conf(conf);
-		switch (vfork()) {
-		case 0: execl(path, path, "--update-db", conf, NULL);
-		case -1: pz_perror("MPD Update failed");
-			 break;
-		default: wait(NULL);
-			 break;
-		}
+}
+
+void kill_mpd()
+{
+	send_command("kill");
+}
+
+void init_mpd()
+{
+        init_loopback();
+        switch (vfork()) {
+                case 0:
+                         execl(path, path, conf, NULL);
+                case -1: 
+                         pz_perror("Unable to start MPD");
+                         break;
+	        default: 
+                         wait(NULL);
+                         break;
 	}
-	switch (vfork()) {
-	case 0: execl(path, path, conf, NULL);
-	case -1: pz_perror("Unable to start MPD");
-		 break;
-	default: wait(NULL);
-		 break;
-	}
+
 	putenv("MPD_PORT=6600");
 	putenv("MPD_HOST=127.0.0.1");
-	sleep(1); /* yes, cheap hack, I know. */
-#endif
+	while (send_command(""));
+
 }
 
-PZ_MOD_INIT(init_mpd)
+PzWindow *db_do_update()
+{
+        const char *const argv[] = { path, "--update-db", conf, NULL };
+        pz_execv(path, (char *const *)argv);
+        return TTK_MENU_DONOTHING;
+}
+
+static void mpd_init()
+{
+	module = pz_register_module("mpd", kill_mpd);
+	 	
+	pz_menu_add_action_group("/Settings/Music/Update BD", "setting", db_do_update);
+	
+        init_conf();
+	create_db();
+	init_mpd();
+}
+
+
+PZ_MOD_INIT(mpd_init)
