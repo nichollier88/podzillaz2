@@ -28,6 +28,11 @@
 #include "pz.h"
 #include "mpdc.h"
 
+void (*init_mpd)();
+void (*kill_mpd)();
+
+int mpd_active;
+
 PzModule *module;
 
 mpd_Connection *mpdz = NULL;
@@ -123,8 +128,9 @@ int mpdc_init()
 {
 	static int warned_once = 0;
 	if ((mpdz = mpd_init_connection()) == NULL) {
-		if (!warned_once) {
+		if (!warned_once && mpd_active) {
 			pz_error(_("Unable to connect to MPD"));
+                        mpd_active = 0;
 			warned_once = 1;
 		}
 		return -1;
@@ -136,6 +142,7 @@ void mpdc_destroy()
 {
 	mpd_closeConnection(mpdz);
 	mpdz = NULL;
+        mpd_active = 0;
 }
 
 /*  0 - connected
@@ -161,8 +168,10 @@ int mpdc_tickle()
 			if (!err) { /* already have an error */
 				pz_error(_("Unable to determine MPD status."));
 			}
+                        mpd_active = 0;
 			return -1;
 		}
+                mpd_active = 1;
 		return 1;
 	}
 
@@ -398,6 +407,67 @@ static int mpdc_unused_handler(int button, int time)
 	return 0;
 }
 
+int mpd_available()
+{
+	if (!init_mpd)
+		init_mpd = pz_module_softdep("mpd", "init_mpd");
+	if (!kill_mpd)
+		kill_mpd = pz_module_softdep("mpd", "kill_mpd");	
+        return (!!init_mpd & !!kill_mpd);
+}
+
+static int if_active(ttk_menu_item *item)
+{
+	return mpd_active;
+}
+
+static int if_inactive(ttk_menu_item *item)
+{
+	return !mpd_active;
+}
+
+void force_kill()
+{
+       if (mpd_available() && mpd_active == 1) {
+           mpdc_destroy();
+           kill_mpd();
+           mpd_active = 0;
+        } else {
+           pz_message("Something is wrong here.");
+       }
+       return;
+} 
+
+void force_init()
+{
+       if (mpd_available() && mpd_active == 0) {
+           init_mpd();
+	   mpdc_init();
+           mpd_active = 1;
+        } else {
+           pz_message("Something is wrong here.");
+       }
+       return;
+}
+
+static PzWindow *force_kill_pzw()
+{
+       force_kill();
+       if (mpd_active == 0){
+           pz_message("MPD process killed.");
+       }
+       return TTK_MENU_UPONE;
+}
+
+static PzWindow *force_init_pzw()
+{
+       force_init();
+       if (mpd_active == 1){
+           pz_message("MPD process initiated.");
+       }
+       return TTK_MENU_UPONE;
+}
+
 static void cleanup_mpdc()
 {
 	mpdc_destroy();
@@ -419,9 +489,11 @@ static void init_mpdc()
 #ifdef IPOD /* warning gets a bit annoying if you don't have MPD installed */
 		pz_error(_("Unable to connect to MPD"));
 #endif
+                mpd_active = 0;
 		return;
 	}
 	module = pz_register_module("mpdc", cleanup_mpdc);
+        mpd_active = 1;
 	pz_register_global_unused_handler(PZ_BUTTON_PLAY, mpdc_unused_handler);
 	pz_register_global_unused_handler(PZ_BUTTON_NEXT, mpdc_unused_handler);
 	pz_register_global_unused_handler(PZ_BUTTON_PREVIOUS,
@@ -438,7 +510,13 @@ static void init_mpdc()
 		pz_menu_add_action_group("/Music/Search...", "Browse", new_search_window);
 	pz_menu_add_action_group("/Music/Queue", "Playlists", new_queue_menu)->flags = flag;
 	pz_menu_add_action_group("/Now Playing", "Media", mpd_currently_playing);
-	pz_get_menu_item("/Now Playing")->visible = playing_visible;
+	pz_menu_add_action_group("/Settings/Music/Stop MPD", "~Settings", force_kill_pzw);
+	pz_menu_add_action_group("/Settings/Music/Start MPD", "~Settings", force_init_pzw);
+
+        pz_get_menu_item("/Music")->visible = if_active;
+        pz_get_menu_item("/Now Playing")->visible = playing_visible;
+        pz_get_menu_item("/Settings/Music/Stop MPD")->visible = if_active;
+        pz_get_menu_item("/Settings/Music/Start MPD")->visible = if_inactive;
 
 	SETUP_MENUITEM("/Settings/Shuffle", set_shuffle, init_shuffle());
 	SETUP_MENUITEM("/Settings/Repeat", set_repeat, init_repeat());
