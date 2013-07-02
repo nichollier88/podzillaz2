@@ -211,6 +211,56 @@ static int check_hidden(ttk_menu_item *item)
 	return 1;
 }
 
+static TWidget *read_directory_ext(const char *dirname, int ext(const char *file))
+{
+	TWidget *ret;
+	DIR *dir;
+	struct stat st;
+	struct dirent *subdir;
+
+	ret = ttk_new_menu_widget(NULL, ttk_menufont, ttk_screen->w -
+			ttk_screen->wx, ttk_screen->h - ttk_screen->wy);
+	ttk_menu_set_i18nable(ret, 0);
+	dir = opendir(dirname);
+        
+	while ((subdir = readdir(dir))) {
+		ttk_menu_item *item;
+		Entry *entry;
+		if (strncmp(subdir->d_name,".", strlen(subdir->d_name)) == 0) {
+			continue;
+		}
+		
+		stat(subdir->d_name, &st);
+                if (ext(subdir->d_name) || S_ISDIR(st.st_mode)){
+
+		item = (ttk_menu_item *)calloc(1, sizeof(ttk_menu_item));
+		if (strncmp(subdir->d_name,"..",strlen(subdir->d_name)) == 0) {
+			continue;
+		}
+		else {
+			entry = (Entry *)malloc(sizeof(Entry));
+			entry->name = (char *)strdup(subdir->d_name);
+			entry->mode = st.st_mode;
+
+			item->name = (char *)entry->name;
+			item->visible = check_hidden;
+			item->data = (void *)entry;
+			item->free_data = 1;
+			item->free_name = 1;
+                        item->makesub = handle_file;
+		}
+		ttk_menu_append(ret, item);
+            }
+	}
+	ttk_menu_sort_my_way(ret, entry_cmp);
+	closedir(dir);
+
+	ret->button = button_handler;
+	ret->held = held_handler;
+	ret->holdtime = 500; /* ms */
+	return ret;
+}
+
 static TWidget *read_directory(const char *dirname)
 {
 	TWidget *ret;
@@ -265,6 +315,26 @@ static TWidget *read_directory(const char *dirname)
 	ret->held = held_handler;
 	ret->holdtime = 500; /* ms */
 	return ret;
+}
+
+TWindow *open_directory_ext(const char *filename, const char *header, int ext(const char *file))
+{
+	TWindow *ret;
+	TWidget *menu;
+	int lwd;
+
+	lwd = open(".", O_RDONLY);
+
+	chdir(filename);
+        ret = pz_new_window(_(header), PZ_WINDOW_NORMAL);
+
+	menu = read_directory_ext("./", ext);
+	menu->data2 = malloc(sizeof(int));
+	*(int *)menu->data2 = lwd;
+	ttk_add_widget(ret, menu);
+
+	ret->data = 0x12345678;
+	return pz_finish_window(ret);
 }
 
 static TWindow *open_directory(const char *filename)
