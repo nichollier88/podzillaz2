@@ -289,7 +289,7 @@ static int is_ascii_file(const char *filename)
 	return 1;
 }
 
-int is_ext(const char *file, const char *ext)
+int check_ext(const char *file, const char *ext)
 {
 	struct stat st;
 	stat (file, &st);
