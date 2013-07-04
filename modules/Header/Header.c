@@ -35,15 +35,16 @@ int (*textwstart)(TWidget * wid);
 
 static int pz_set_header(TWidget * wid, char * txt)
 {
-  int reboot = pz_dialog(_("Reboot"), 
-      _("Header Name have been saved, Need to reboot to take effect"), 2, 0, _("ok"), _("Reboot"));
-    pz_set_string_setting (pz_global_config,HEADER, txt);
-    pz_save_config(pz_global_config);
-     if (reboot == 1)
-       pz_ipod_reboot();
-     else     
-       pz_close_window(wid->win);
-    return 0;
+        int reboot = pz_dialog(_("Reboot"), 
+              _("Header Name have been saved, Need to reboot to take effect"), 2, 0, _("ok"), _("Reboot"));
+        pz_set_string_setting (pz_global_config, HEADERNAME, txt);
+        pz_save_config(pz_global_config);
+
+        if (reboot)
+            pz_ipod_reboot();
+           
+        pz_close_window(wid->win);
+        return 0;
 }
 
 int text_available()
@@ -52,23 +53,28 @@ int text_available()
 		textw = pz_module_softdep("tiwidgets", "ti_new_standard_text_widget");
 	if (!textwstart)
 	  textwstart = pz_module_softdep("tiwidgets", "ti_widget_start");
-    return (!!textw & !!textwstart);
+        return (!!textw & !!textwstart);
 }
 
 static PzWindow *set_Header()
 {
-  if(text_available()){
         PzWindow * ret;
  	TWidget * wid;
- 	ret = pz_new_window(_("Set Header Name"), PZ_WINDOW_NORMAL);
-	wid = textw(10, 40, ret->w-20, 10+ttk_text_height(ttk_textfont), 0, "Podzillaz", pz_set_header);
-	ttk_add_widget(ret, wid);
-	ret = pz_finish_window(ret);
-	textwstart(wid);
-	return ret;
-    } else { 
-	pz_warning("Install module text input");
-	return TTK_MENU_DONOTHING;
+
+        char headername[256];
+        snprintf(headername, 256,
+              pz_get_string_setting(pz_global_config, HEADERNAME));
+
+        if(text_available()){
+ 	    ret = pz_new_window(_("Set Header Name"), PZ_WINDOW_NORMAL);
+	    wid = textw(10, 40, ret->w-20, 10+ttk_text_height(ttk_textfont), 0, headername, pz_set_header);
+	    ttk_add_widget(ret, wid);
+	    textwstart(wid);
+	   return pz_finish_window(ret);
+        } 
+         else { 
+	    pz_warning("Install module text input");
+	  return TTK_MENU_UPONE;
   }
 }
  

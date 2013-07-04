@@ -345,9 +345,12 @@ void pz_menu_init()
 TWindow *pz_default_new_menu_window (TWidget *menu_wid) 
 {
     // If you don't want to directly use menu_wid, you can use ttk_menu_get_item() and friends.
+    char headername[256];
+    snprintf(headername, 256,
+          pz_get_string_setting(pz_global_config, HEADERNAME));
     TWindow *ret = ttk_new_window();
     ttk_add_widget (ret, menu_wid);
-    ttk_window_title (ret, pz_get_string_setting(pz_global_config, HEADER));
+    ttk_window_title (ret, headername);
     return ret;
 }
 

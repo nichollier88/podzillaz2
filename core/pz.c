@@ -629,8 +629,8 @@ main(int argc, char **argv)
 	if (!SET(SLIDE_TRANSIT))    pz_ipod_set (SLIDE_TRANSIT, 2);
 	if (!SET(BACKLIGHT))        pz_ipod_set (BACKLIGHT, 1);
 	if (!SET(BACKLIGHT_TIMER))  pz_ipod_set (BACKLIGHT_TIMER, 3);
-	if (!SET(HEADER))          
-	  pz_set_string_setting (pz_global_config,HEADER, "Podzilla");
+	if (!SET(HEADERNAME))          
+	        pz_set_string_setting (pz_global_config,HEADERNAME, "Podzilla");
 	if (!SET(COLORSCHEME))
 		pz_set_string_setting (pz_global_config,COLORSCHEME, "mono.cs");
 	pz_save_config (pz_global_config);
