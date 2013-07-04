@@ -20,17 +20,17 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include "pz.h"
-
-static PzConfig *Config;
-static PzModule *Module;
-static ttk_menu_item browser_extension;
+static PzConfig *nesConfig;
+static PzModule *nesModule;
+static const char *nesBinary;
+static ttk_menu_item nesExtension;
 
 extern TWindow *open_directory_ext(const char *filename, const char *header, int ext(const char *file));
 static TWidget *(*ltinstw)(int x, int y, int w, int h, int absheight,
 		char *dt, int (*callback)(TWidget *, char *));
 static int (*ltws)(TWidget * wid);
 
-int text_available()
+static int text_available()
 {
 	if (!ltws)
 		ltws = pz_module_softdep("tiwidgets", "ti_widget_start");
@@ -40,93 +40,90 @@ int text_available()
 	return (!!ltinstw & !!ltws);
 }
 
-int IF_NES(const char *file)
+static int ifNes(const char *file)
 {
   return check_ext(file, ".nes");
 }
 
 static PzWindow *idarcnes_exec(const char *file)
 {
-        char * command = (char *) calloc(120, sizeof(char));
-	strcpy(command, "iDarcNes ");
-	strcat(command, file);
-	pz_exec(pz_module_get_datapath (Module, command));
+        char * nes_command = (char *) calloc(sizeof(nes_command), sizeof(char));
+	strcpy(nes_command, "iDarcNes ");
+	strcat(nes_command, file);
+	pz_exec(pz_module_get_datapath (nesModule, nes_command));
 	return TTK_MENU_DONOTHING;
 }
 
-static PzWindow *nes_file_handler(ttk_menu_item *item)
+static PzWindow *nesHandler(ttk_menu_item *item)
 {
 	return idarcnes_exec(item->data);
 }
 
-static PzWindow *idarcnes_browser()
+static PzWindow *nesBrowser()
 {
-        static const char *Directory;
-        Directory = pz_get_string_setting(Config, 1);
-        if (!Config){
+        const char *nesDirectory;
+        nesDirectory = pz_get_string_setting(nesConfig, 1);
+        if (!nesConfig){
            pz_error(_("No directory have been select."));
            return TTK_MENU_UPALL;
            pz_error(_("Go to /Setting/Select directory/iDarcNes to set it"));
            return 0;
         }
          else { 
-           return open_directory_ext(Directory, "iDarcNes", IF_NES);
+           return open_directory_ext(nesDirectory, "iDarcNes", ifNes);
         } 
 }
 
-static int save_config(TWidget * wid, char * txt)
+static int nesSaveConfig(TWidget * wid, char * txt)
 {
-        pz_set_string_setting(Config, 1, txt);
-        pz_save_config(Config);
+        pz_set_string_setting(nesConfig, 1, txt);
+        pz_save_config(nesConfig);
         pz_close_window(wid->win);
         return 0;
 }
 
-PzWindow * set_directory()
+static PzWindow * nesDirectory()
 {
-     if (!text_available()) {
-             pz_error(_("Tiwidgets(Text input) is missing."));
-              mkdir("/mnt/rom/iDarcNes/", S_IFDIR|S_IRUSR|S_IWUSR|S_IXUSR|S_IXGRP|S_IWGRP|S_IRGRP);
-              save_config(NULL, "/mnt/rom/iDarcNes/");
-              pz_error(_("Until you install tiwidgets your Rom folder will be /mnt/rom/iDarcNes/"));
-             return 0;
-      }
-       else {
-	    PzWindow * ret;
-	     TWidget * wid;
-	      ret = pz_new_window(_("iDarcNes Rom Directory"), PZ_WINDOW_NORMAL);
-	      wid = ltinstw(10, 40, ret->w-20, 10+ttk_text_height(ttk_textfont), 0, "/mnt/", save_config);
-	     ttk_add_widget(ret, wid);
-	    ret = pz_finish_window(ret);
-	   ltws(wid);
-          return ret;
-      }
+        if (!text_available()) {
+           pz_error(_("Tiwidgets(Text input) is missing."));
+            mkdir("/mnt/rom/iDarcNes/", S_IFDIR|S_IRUSR|S_IWUSR|S_IXUSR|S_IXGRP|S_IWGRP|S_IRGRP);
+             nesSaveConfig(NULL, "/mnt/rom/iDarcNes/");
+            pz_error(_("Until you install tiwidgets your Rom folder will be /mnt/rom/iDarcNes/"));
+          return TTK_MENU_UPONE;
+         } else {
+	  PzWindow * ret;
+	   TWidget * wid;
+	    ret = pz_new_window(_("iDarcNes Rom Directory"), PZ_WINDOW_NORMAL);
+             wid = ltinstw(10, 40, ret->w-20, 10+ttk_text_height(ttk_textfont), 0, "/mnt/", nesSaveConfig);
+	    ttk_add_widget(ret, wid);
+ 	   ltws(wid);
+          return pz_finish_window(ret);
+        }
 }
 
-static void cleanup()
+static void nesCleanup()
 {
-	pz_browser_remove_handler(IF_NES);
+	pz_browser_remove_handler(ifNes);
 }
 
-static void init_launch() 
+static void init_idarcnes() 
 {
-        const char * Binary;
-        struct stat buf;
+        struct stat nesBuf;
 
-	Module = pz_register_module("iDarcNes", cleanup);
-	Config = pz_load_config(pz_module_get_cfgpath(Module,"Config.conf"));
-	Binary = pz_module_get_datapath(Module, "iDarcNes");
+	nesModule = pz_register_module("iDarcNes", nesCleanup);
+        nesConfig = pz_load_config(pz_module_get_cfgpath(nesModule,"Config.conf"));
+	nesBinary = pz_module_get_datapath(nesModule, "iDarcNes");
 
-        if (!stat(Binary, &buf) == S_IXUSR || 00100)
-            chmod(Binary, S_IRWXU);
+        if (!stat(nesBinary, &nesBuf) == S_IXUSR || 00100)
+            chmod(nesBinary, S_IRWXU);
 				
-	browser_extension.name = N_("Open with Nintedo NES");
-	browser_extension.makesub = nes_file_handler;
-	pz_browser_add_action (IF_NES, &browser_extension);
-	pz_browser_set_handler(IF_NES, idarcnes_exec);
+	nesExtension.name = N_("Open with Nintedo NES");
+	nesExtension.makesub = nesHandler;
+	pz_browser_add_action(ifNes, &nesExtension);
+	pz_browser_set_handler(ifNes, idarcnes_exec);
 	
-        pz_menu_add_action_group("/Setting/Select directory/iDarcNes", "Browse", set_directory);
-        pz_menu_add_action_group("/Extras/Games/iDarcNes", "Emulator", idarcnes_browser);
+        pz_menu_add_action_group("/Setting/Select directory/iDarcNes", "Browse", nesDirectory);
+        pz_menu_add_action_group("/Extras/Games/iDarcNes", "Emulator", nesBrowser);
 }
 
-PZ_MOD_INIT(init_launch)
+PZ_MOD_INIT(init_idarcnes)
