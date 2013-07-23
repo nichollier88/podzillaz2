@@ -25,6 +25,8 @@
 #include <sys/stat.h>
 #include "pz.h"
 
+#define FOLDER    (0)
+
 static PzConfig *config;
 static PzModule *module;
 static ttk_menu_item browser_extension;
@@ -59,7 +61,7 @@ static int is_gba(const char *file)
         return check_ext(file, ".gba");
 }
 
-static PzWindow *exec_file(const char *file)
+static TWindow *exec_file(const char *file)
 { 
         char * command = (char *) calloc(120, sizeof(char));
 	strcpy(command, "igpSP ");
@@ -68,28 +70,29 @@ static PzWindow *exec_file(const char *file)
 	return TTK_MENU_DONOTHING;
 }
 
-static PzWindow *load_handler(ttk_menu_item *item)
+static TWindow *load_handler(ttk_menu_item *item)
 {
 	return exec_file(item->data);
 }
 
 static PzWindow *browse_roms()
 {
-        struct stat st;
-        char * folder = (char *) pz_get_string_setting(config, 1);
+        struct stat st;  
+	char folder[30];
+	sprintf(folder, "%s", pz_get_string_setting(config, FOLDER));
 
-        if (stat (folder, &st) < 0 || !S_ISDIR (st.st_mode)) {
-          pz_warning("Folder do not exsist or have been not selected");
-          pz_warning("Select a valid Folder in Setting -> Select folder -> Game Boy Advance");  
+        if (!access(pz_module_get_cfgpath(module,"config.conf"), R_OK)) {
+          pz_warning(_("No folder have been selected yet"));
+          pz_warning(_("Select a folder in /Setting/Select folder/Game Boy Advance"));
           return TTK_MENU_DONOTHING;
         }
-        
-        if (browser_available()) {
-          return open_directory_ext_softdep(folder, "Game Boy Advance", is_gba);
-        } 
 
-        pz_warning("Browser module is missing.");
-        return TTK_MENU_DONOTHING;
+        if (stat (folder, &st) < 0 || !S_ISDIR (st.st_mode)) {
+          pz_warning("Folder do not exsist. check again");
+          return TTK_MENU_DONOTHING;
+        }
+
+        return open_directory_ext_softdep(folder, "Game Boy Advance", is_gba);
 }
 
 static void select_folder_draw(TWidget * wid, ttk_surface srf)
@@ -107,36 +110,32 @@ static void select_folder_draw(TWidget * wid, ttk_surface srf)
 	}
 }
 
-static int save_folder(TWidget * wid, char * fn)
+static int save_config(TWidget * wid, char * fn)
 {	
-        pz_set_string_setting(config, 1, fn);
+        pz_set_string_setting(config, FOLDER, fn);
         pz_save_config(config);
-        pz_ipod_fix_settings(config);
         pz_close_window(wid->win);
+        ttk_remove_widget(wid->win, wid);
 	return 0;
 }
 
-static PzWindow * select_folder()
+static PzWindow *select_folder()
 {
-        if (tiwidgets_available()) {
-	PzWindow * ret;
+	TWindow * ret;
 	TWidget * wid;
 	TWidget * wid2;
 	ret = pz_new_window(_("Game Boy Advance"), PZ_WINDOW_NORMAL);
-	wid = ti_new_standard_text_widget_softdep(10, 
-                       10+ttk_text_height(ttk_textfont)*((ttk_screen->w < 160 || ttk_screen->w >= 320)?2:3), ret->w-20, 10+ttk_text_height(ttk_textfont), 0, "/mnt/", save_folder);
+        wid = ti_new_standard_text_widget_softdep(10, 
+                       10+ttk_text_height(ttk_textfont)*((ttk_screen->w < 160 || ttk_screen->w >= 320)?2:3), ret->w-20, 10+ttk_text_height(ttk_textfont), 0, "/mnt/", save_config);
 	ttk_add_widget(ret, wid);
 	wid2 = ttk_new_widget(10, 5);
 	wid2->w = ret->w-20;
 	wid2->h = ttk_text_height(ttk_menufont)*((ttk_screen->w < 160 || ttk_screen->w >= 320)?2:3);
 	wid2->draw = select_folder_draw;
 	ttk_add_widget(ret, wid2);
-	ret = pz_finish_window(ret);
-	ti_widget_start_softdep(wid);
-	return ret;
-        }
-        pz_warning("Tiwidgets module is missing");
-        return TTK_MENU_DONOTHING;
+        ret = pz_finish_window(ret);
+        ti_widget_start_softdep(wid);
+        return ret;
 }
 
 static void cleanup()
@@ -150,7 +149,7 @@ static void init()
 
 	module = pz_register_module("igpSP", cleanup);
 	binary = pz_module_get_datapath(module, "igpSP");
-	config = pz_load_config(pz_module_get_cfgpath(module,"igpsp_dir.conf"));
+	config = pz_load_config(pz_module_get_cfgpath(module,"config.conf"));
              
         if (!stat(binary, &st) == S_IXUSR || 00100)
             chmod(binary, S_IRWXU);
@@ -160,8 +159,13 @@ static void init()
 	pz_browser_add_action (is_gba, &browser_extension);
 	pz_browser_set_handler(is_gba, exec_file);
 
+        if (browser_available())
         pz_menu_add_action_group("/Extras/Games/Game Boy Advance", "Browse", browse_roms);
-        pz_menu_add_action_group("/Setting/Select folder/Game Boy Advance", "Browse", select_folder);
+        else pz_warning(_("Module browser is missing"));
+
+        if (tiwidgets_available())
+        pz_menu_add_action_group("/Setting/Select Folder/Game Boy Advance", "Browse", select_folder);
+        else pz_warning(_("Module tiwidgets is missing"));
 }
 
 PZ_MOD_INIT(init)
