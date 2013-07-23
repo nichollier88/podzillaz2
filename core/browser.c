@@ -64,7 +64,7 @@ void setup_sigchld_handler()
 	sigchld_handler = 1;
 }
 
-static void pz_execv_mpd(const char *path, char *const argv[])
+void pz_execv(const char *path, char *const argv[])
 {
 #ifdef IPOD
 	static const char *const vcs[] = {"/dev/vc/%d", "/dev/tty%d", 0};
@@ -113,6 +113,9 @@ static void pz_execv_mpd(const char *path, char *const argv[])
 		goto err;
 	}
         
+        /* Kill MPD music player */
+        if (mpd_available())
+              kill_mpd();
 
 	switch(pid = vfork()) {
 	case -1: /* error */
@@ -177,6 +180,10 @@ static void pz_execv_mpd(const char *path, char *const argv[])
 		break;
 	}
 
+        /* init MPD music player */
+        if (mpd_available())
+              init_mpd();
+
 err:
 	close(tty0_fd);
 	if (ttyfd >= 0)
@@ -184,19 +191,6 @@ err:
 #else
 	pz_message(argv[0]);
 #endif /* IPOD */
-}
-
-void pz_execv(const char *path, char *const argv[])
-{
-        /* Kill MPD music player */
-        if (mpd_available()) 
-           kill_mpd();
-
-        pz_execv_mpd(path, argv);
-
-        /* init MPD music player */
-        if (mpd_available())
-           init_mpd();
 }
 
 void pz_exec(const char *file)

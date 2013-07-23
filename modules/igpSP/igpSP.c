@@ -27,10 +27,10 @@
 
 #define FOLDER    (0)
 
-static PzConfig *config;
-static PzModule *module;
+static PzConfig * config;
+static PzModule * module;
 static ttk_menu_item browser_extension;
-static const char *binary;
+static const char * binary;
 
 static TWindow *(*open_directory_ext_softdep)(const char *filename, const char *title, int ext(const char *file));
 
@@ -63,10 +63,10 @@ static int is_gba(const char *file)
 
 static TWindow *exec_file(const char *file)
 { 
-        char * command = (char *) calloc(120, sizeof(char));
-	strcpy(command, "igpSP ");
-	strcat(command, file);
-	pz_exec(pz_module_get_datapath (module, command));
+	char command[60];
+	sprintf(command, "%s %s", pz_module_get_datapath (module, "igpSP"), file);
+	const char *const argv[] = {"sh", "-c", command, NULL};
+	pz_execv("/bin/sh", (char *const *)argv);
 	return TTK_MENU_DONOTHING;
 }
 
@@ -81,7 +81,7 @@ static PzWindow *browse_roms()
 	char folder[30];
 	sprintf(folder, "%s", pz_get_string_setting(config, FOLDER));
 
-        if (!access(pz_module_get_cfgpath(module,"config.conf"), R_OK)) {
+        if (!pz_get_setting(config, FOLDER)) {
           pz_warning(_("No folder have been selected yet"));
           pz_warning(_("Select a folder in /Setting/Select folder/Game Boy Advance"));
           return TTK_MENU_DONOTHING;
@@ -115,11 +115,10 @@ static int save_config(TWidget * wid, char * fn)
         pz_set_string_setting(config, FOLDER, fn);
         pz_save_config(config);
         pz_close_window(wid->win);
-        ttk_remove_widget(wid->win, wid);
 	return 0;
 }
 
-static PzWindow *select_folder()
+static TWindow *select_folder()
 {
 	TWindow * ret;
 	TWidget * wid;
@@ -133,9 +132,8 @@ static PzWindow *select_folder()
 	wid2->h = ttk_text_height(ttk_menufont)*((ttk_screen->w < 160 || ttk_screen->w >= 320)?2:3);
 	wid2->draw = select_folder_draw;
 	ttk_add_widget(ret, wid2);
-        ret = pz_finish_window(ret);
         ti_widget_start_softdep(wid);
-        return ret;
+        return pz_finish_window(ret);
 }
 
 static void cleanup()
