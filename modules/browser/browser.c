@@ -224,31 +224,23 @@ static TWidget *read_directory_ext(const char *dirname, int ext(const char *file
 	dir = opendir(dirname);
         
 	while ((subdir = readdir(dir))) {
-		ttk_menu_item *item;
+                ttk_menu_item *item;
 		Entry *entry;
-		if (strncmp(subdir->d_name,".", strlen(subdir->d_name)) == 0) {
-			continue;
-		}
-		
+
 		stat(subdir->d_name, &st);
-                if (ext(subdir->d_name) || S_ISDIR(st.st_mode)){
+                if (ext(subdir->d_name)){
 
 		item = (ttk_menu_item *)calloc(1, sizeof(ttk_menu_item));
-		if (strncmp(subdir->d_name,"..",strlen(subdir->d_name)) == 0) {
-			continue;
-		}
-		else {
-			entry = (Entry *)malloc(sizeof(Entry));
-			entry->name = (char *)strdup(subdir->d_name);
-			entry->mode = st.st_mode;
+	       	entry = (Entry *)malloc(sizeof(Entry));
+		entry->name = (char *)strdup(subdir->d_name);
+		entry->mode = st.st_mode;
+		item->name = (char *)entry->name;
+		item->visible = check_hidden;
+		item->data = (void *)entry;
+		item->free_data = 1;
+		item->free_name = 1;
+                item->makesub = handle_file;
 
-			item->name = (char *)entry->name;
-			item->visible = check_hidden;
-			item->data = (void *)entry;
-			item->free_data = 1;
-			item->free_name = 1;
-                        item->makesub = handle_file;
-		}
 		ttk_menu_append(ret, item);
             }
 	}
@@ -317,7 +309,7 @@ static TWidget *read_directory(const char *dirname)
 	return ret;
 }
 
-TWindow *open_directory_ext(const char *filename, const char *header, int ext(const char *file))
+TWindow *open_directory_ext(const char *filename, const char *title, int ext(const char *file))
 {
 	TWindow *ret;
 	TWidget *menu;
@@ -326,7 +318,7 @@ TWindow *open_directory_ext(const char *filename, const char *header, int ext(co
 	lwd = open(".", O_RDONLY);
 
 	chdir(filename);
-        ret = pz_new_window(_(header), PZ_WINDOW_NORMAL);
+        ret = pz_new_window(_(title), PZ_WINDOW_NORMAL);
 
 	menu = read_directory_ext("./", ext);
 	menu->data2 = malloc(sizeof(int));
