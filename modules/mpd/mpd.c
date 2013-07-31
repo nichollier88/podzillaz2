@@ -2,17 +2,16 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 
 #include "pz.h"
 
-#define path "/usr/lib/mpd/mpd"
-#define mpd_cfg "/etc/podzilla/modules/mpd/"
-#define conf "/etc/podzilla/modules/mpd/mpd.conf"
-#define db "/etc/podzilla/modules/mpd/mpddb"
-
 static PzModule *module;
+
+static const char *binary = "/usr/lib/mpd/mpd";
+static const char *config = "/etc/podzilla/modules/mpd/mpd.conf";
 
 static int send_command(char *str)
 {
@@ -52,8 +51,9 @@ static int send_command(char *str)
 
 static void init_conf()
 {
-	if (!(access(conf, F_OK) == 0)) {
-		FILE *fconf = fopen(conf, "w");
+	char *cfg = "/etc/podzilla/modules/mpd/";
+        if (!(access(config, F_OK) == 0)) {
+		FILE *fconf = fopen(config, "w");
 		fprintf(fconf,
 		"port 			\"6600\"\n"
 		"music_directory 	\"/mnt\"\n"
@@ -67,23 +67,24 @@ static void init_conf()
 		"state_file		\"%sstate\"\n"
 		"mixer_control		\"PCM\"\n\n"
 		"audio_output {\n\ttype \"oss\"\n\tname \"oss\"\n}\n",
-		mpd_cfg, mpd_cfg, mpd_cfg, mpd_cfg, mpd_cfg);
+		cfg, cfg, cfg, cfg, cfg);
 		fclose(fconf);
 	}
 }
 
 static void create_db()
 {
+        char *db = "/etc/podzilla/modules/mpd/mpddb";
 	if (!(access(db, F_OK) == 0)) {
-		FILE *fdb = fopen(db, "w");
-		fprintf(fdb,
-		"info_begin\n"
-    "mpd_version: mpd-ke\n"
-    "fs_charset: ISO-8859-1\n"
-    "info_end\n"
-    "songList begin\n"
-    "songList end\n");
-  	fclose(fdb);
+	  FILE *fdb = fopen(db, "w");
+	   fprintf(fdb,
+            "info_begin\n"
+            "mpd_version: mpd-ke\n"
+            "fs_charset: ISO-8859-1\n"
+            "info_end\n"
+            "songList begin\n"
+            "songList end\n");
+  	  fclose(fdb);
 	}
 }
 
@@ -111,7 +112,7 @@ void init_mpd()
         init_loopback();
         switch (vfork()) {
                 case 0:
-                         execl(path, path, conf, NULL);
+                         execl(binary, binary, config, NULL);
                 case -1: 
                          pz_perror("Unable to start MPD");
                          break;
@@ -128,15 +129,19 @@ void init_mpd()
 
 PzWindow *db_do_update()
 {
-        const char *const argv[] = { path, "--update-db", conf, NULL };
-        pz_execv(path, (char *const *)argv);
+        const char *const argv[] = { binary, "--update-db", config, NULL };
+        pz_execv(binary, (char *const *)argv);
         return TTK_MENU_DONOTHING;
 }
 
 static void mpd_init()
 {
+        struct stat st;
+        if (!stat(binary, &st) == S_IXUSR || 00100)
+            chmod(binary, S_IRWXU);
+
 	module = pz_register_module("mpd", kill_mpd);
-	 	
+       
 	pz_menu_add_action_group("/Settings/Music/Update BD", "setting", db_do_update);
 	
         init_conf();
