@@ -138,6 +138,9 @@ static TWindow *select_folder()
 
 static void cleanup()
 {
+	pz_save_config(config);
+	pz_free_config(config);
+	config = 0;
 	pz_browser_remove_handler(is_gba);
 }
 
