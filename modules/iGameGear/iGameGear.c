@@ -163,31 +163,14 @@ static PzWindow * gg_nes_set_dir_window()
 
 static PzWindow *view_igg_log()
 {
-	PzWindow * w;
-	FILE * f;
-	char * buf;
-	int fl;
-	
-	f = fopen(igamegear_log, "r");
-	if (!f) return 0;
-	fseek(f, 0, SEEK_END);
-	fl = ftell(f);
-	if (fl<0) {
-		fclose(f);
-		return 0;
-	}
-	fseek(f, 0, SEEK_SET);
-	buf = (char *)malloc(fl+1);
-	if (!buf) {
-		fclose(f);
-		return 0;
-	}
-	fl = fread(buf, 1, fl, f);
-	buf[fl]=0;
-	fclose(f);
-	
+        TWindow * w;
+	FILE * fp;
+        char * buf;        
+	fp = fopen(igamegear_log, "r");
+	if (!fp) return 0;
+        buf = strdup((char *)igamegear_log);
 	w = pz_new_textview_window(buf);
-	free(buf);
+	fclose(fp);
 	return w;
 }
 
