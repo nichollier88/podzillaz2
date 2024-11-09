@@ -5,6 +5,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <sys/select.h>
 #include <signal.h>
 
 #include "pz.h"
@@ -12,21 +13,55 @@
 static PzModule *module;
 
 static const char *binary = "/usr/bin/mpd";
-// static const char *config = "/etc/podzilla/modules/mpd/mpd.conf";
 
 char *get_podzilla_dir()
 {
 	char *buffer_ptr = malloc(100);
 	sprintf(buffer_ptr, "%s/podzilla", getenv("HOME"));
-	// sprintf(buffer_ptr, "%s/podzilla", "/home/nick");
+	return buffer_ptr;
+}
+
+char *get_mpd_dir()
+{
+	char *buffer_ptr = malloc(100);
+	sprintf(buffer_ptr, "%s/modules/mpd", get_podzilla_dir());
 	return buffer_ptr;
 }
 
 char *get_mpd_config()
 {
 	char *buffer_ptr = malloc(100);
-	sprintf(buffer_ptr, "%s/modules/mpd/mpd.conf", get_podzilla_dir());
+	sprintf(buffer_ptr, "%s/mpd.conf", get_mpd_dir());
 	return buffer_ptr;
+}
+
+void print_reply(int sock)
+{
+	struct timeval timeout;
+	fd_set readfds;
+
+	timeout.tv_sec = 1;
+	timeout.tv_usec = 0;
+	FD_ZERO(&readfds);
+	FD_SET(sock, &readfds);
+
+	if (!select(sock + 1, &readfds, NULL, NULL, &timeout))
+		return;
+
+	if (!FD_ISSET(sock, &readfds))
+		return;
+
+	char buffer[1024];
+	int len = recv(sock, buffer, sizeof(buffer) - 1, 0);
+
+	if (len < 1)
+	{
+		printf("No data received or connection closed\n");
+		return;
+	}
+
+	buffer[len] = '\0'; // Null-terminate the received data
+	printf("Response from MPD: %s\n", buffer);
 }
 
 static int send_command(char *str)
@@ -65,16 +100,16 @@ static int send_command(char *str)
 		return 3;
 	}
 	send(sock, str, strlen(str), 0);
-	send(sock, "\n", 1, 0);
-	close(sock);
+	send(sock, "\nclose", 1, 0);
+	print_reply(sock);
+
+	// close(sock);
 	return 0;
 }
 
 static void init_conf()
 {
-	char mpd_dir[100];
-	sprintf(mpd_dir, "%s/modules/mpd", get_podzilla_dir());
-
+	char *mpd_dir = get_mpd_dir();
 	char *config = get_mpd_config();
 
 	if (!(access(config, F_OK) == 0))
@@ -105,7 +140,7 @@ static void init_conf()
 static void create_db()
 {
 	char db[100];
-	sprintf(db, "%s/modules/mpd/mpddb", get_podzilla_dir());
+	sprintf(db, "%s/mpddb", get_mpd_dir());
 
 	if (!(access(db, F_OK) == 0))
 	{
@@ -141,7 +176,7 @@ static void kill_mpd()
 	// send_command("kill");
 
 	char pid_filepath[100];
-	sprintf(pid_filepath, "%s/modules/mpd/pid", get_podzilla_dir());
+	sprintf(pid_filepath, "%s/pid", get_mpd_dir());
 
 	FILE *file = fopen(pid_filepath, "r");
 	if (!file)
@@ -193,8 +228,11 @@ static void init_mpd()
 
 PzWindow *db_do_update()
 {
-	const char *const argv[] = {binary, "--update-db", get_mpd_config(), NULL};
-	pz_execv(binary, (char *const *)argv);
+	if (send_command("update"))
+		pz_message("Error requesting update");
+	else
+		pz_message("Update requested");
+
 	return TTK_MENU_DONOTHING;
 }
 
@@ -206,7 +244,7 @@ static void mpd_init()
 
 	module = pz_register_module("mpd", kill_mpd);
 
-	// pz_menu_add_action_group("/Settings/Music/Update BD", "setting", db_do_update);
+	pz_menu_add_action_group("/Settings/Music/Update BD", "setting", db_do_update);
 
 	init_conf();
 	create_db();
