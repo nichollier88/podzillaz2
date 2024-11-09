@@ -58,7 +58,7 @@ EXPSYM = -Wl,-E
 INTL =
 LIBS += -L/sw/lib
 endif
-LIBS += -g `$(MYTTKCONF) --x11 --sdl --libs` -L/usr/local/lib -lstdc++ -ldl $(INTL) $(EXPSYM)
+LIBS += -g `$(MYTTKCONF) --x11 --sdl --libs` -L/usr/local/lib -lstdc++ -ldl -lm $(INTL) $(EXPSYM)
 CC ?= cc
 endif
 POD ?= ../../../podfile/pod # relative to two dirs down
