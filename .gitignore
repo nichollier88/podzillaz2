@@ -8,3 +8,4 @@ podzilla
 pods/
 xpods/
 config/
+**/build/
