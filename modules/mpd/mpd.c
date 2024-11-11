@@ -103,7 +103,7 @@ static int send_command(char *str)
 	send(sock, "\nclose", 1, 0);
 	print_reply(sock);
 
-	// close(sock);
+	close(sock);
 	return 0;
 }
 
