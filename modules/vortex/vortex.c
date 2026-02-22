@@ -788,7 +788,7 @@ PzWindow *new_vortex_window()
 
 /* this will help simplify the creation of colors for mono or color */
 
-ttk_color mc_color( cr, cg, cb,  mr, mg, mb )
+ttk_color mc_color(int cr, int cg, int cb, int mr, int mg, int mb)
 {
 	if( ttk_screen->bpp >= 16 ) {
 		return( ttk_makecol( cr, cg, cb ));

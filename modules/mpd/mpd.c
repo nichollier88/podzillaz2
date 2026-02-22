@@ -1,3 +1,5 @@
+#include <stdio.h>
+#include <stdlib.h>
 #include <netdb.h>
 #include <string.h>
 #include <unistd.h>
@@ -12,27 +14,16 @@
 
 static PzModule *module;
 
-static const char *binary = "/usr/bin/mpd";
+static const char *mpd_binary = "/usr/bin/mpd";
 
-char *get_podzilla_dir()
+static void get_mpd_path(char *buffer, size_t size, const char *suffix)
 {
-	char *buffer_ptr = malloc(100);
-	sprintf(buffer_ptr, "%s/podzilla", getenv("HOME"));
-	return buffer_ptr;
-}
+	const char *home = getenv("HOME");
+	if (!home)
+		home = "/root";
 
-char *get_mpd_dir()
-{
-	char *buffer_ptr = malloc(100);
-	sprintf(buffer_ptr, "%s/modules/mpd", get_podzilla_dir());
-	return buffer_ptr;
-}
-
-char *get_mpd_config()
-{
-	char *buffer_ptr = malloc(100);
-	sprintf(buffer_ptr, "%s/mpd.conf", get_mpd_dir());
-	return buffer_ptr;
+	snprintf(buffer, size, "%s/podzilla/modules/mpd%s%s", 
+		home, suffix ? "/" : "", suffix ? suffix : "");
 }
 
 void print_reply(int sock)
@@ -109,8 +100,11 @@ static int send_command(char *str)
 
 static void init_conf()
 {
-	char *mpd_dir = get_mpd_dir();
-	char *config = get_mpd_config();
+	char mpd_dir[256];
+	char config[256];
+
+	get_mpd_path(mpd_dir, sizeof(mpd_dir), NULL);
+	get_mpd_path(config, sizeof(config), "mpd.conf");
 
 	if (!(access(config, F_OK) == 0))
 	{
@@ -121,7 +115,7 @@ static void init_conf()
 				"db_file				\"%s/mpddb\"\n"
 				"pid_file				\"%s/pid\"\n"
 				"state_file				\"%s/state\"\n"
-				"user					\"mpd\"\n"
+				"#user					\"mpd\"\n"
 				"port					\"6600\"\n"
 				"bind_to_address		\"localhost\"\n"
 				"log_file				\"%s/messages.log\"\n"
@@ -139,8 +133,8 @@ static void init_conf()
 
 static void create_db()
 {
-	char db[100];
-	sprintf(db, "%s/mpddb", get_mpd_dir());
+	char db[256];
+	get_mpd_path(db, sizeof(db), "mpddb");
 
 	if (!(access(db, F_OK) == 0))
 	{
@@ -164,6 +158,7 @@ static void init_loopback()
 		execl("/usr/sbin/ifconfig", "ifconfig", "lo", "127.0.0.1", NULL);
 	case -1:
 		pz_perror("Unable to initialize loopback interface");
+		_exit(127);
 		break;
 	default:
 		wait(NULL);
@@ -175,8 +170,8 @@ static void kill_mpd()
 {
 	// send_command("kill");
 
-	char pid_filepath[100];
-	sprintf(pid_filepath, "%s/pid", get_mpd_dir());
+	char pid_filepath[256];
+	get_mpd_path(pid_filepath, sizeof(pid_filepath), "pid");
 
 	FILE *file = fopen(pid_filepath, "r");
 	if (!file)
@@ -207,13 +202,17 @@ static void kill_mpd()
 
 static void init_mpd()
 {
+	char config[256];
+	get_mpd_path(config, sizeof(config), "mpd.conf");
+
 	init_loopback();
 	switch (vfork())
 	{
 	case 0:
-		execl(binary, binary, get_mpd_config(), NULL);
+		execl(mpd_binary, mpd_binary, config, NULL);
 	case -1:
 		pz_perror("Unable to start MPD");
+		_exit(127);
 		break;
 	default:
 		wait(NULL);
@@ -222,8 +221,12 @@ static void init_mpd()
 
 	putenv("MPD_PORT=6600");
 	putenv("MPD_HOST=127.0.0.1");
-	while (send_command(""))
-		;
+
+	int retries = 50;
+	while (send_command("") != 0 && retries-- > 0)
+	{
+		usleep(100000);
+	}
 }
 
 PzWindow *db_do_update()
@@ -239,8 +242,11 @@ PzWindow *db_do_update()
 static void mpd_init()
 {
 	struct stat st;
-	if (!stat(binary, &st) == S_IXUSR || 00100)
-		chmod(binary, S_IRWXU);
+	if (stat(mpd_binary, &st) == 0)
+	{
+		if (!(st.st_mode & S_IXUSR))
+			chmod(mpd_binary, S_IRWXU);
+	}
 
 	module = pz_register_module("mpd", kill_mpd);
 

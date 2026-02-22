@@ -121,7 +121,7 @@ void clock_draw_alien_ap( ttk_surface srf, clocks_globals *glob )
 }
 
 
-static ttk_color mc_color( cr, cg, cb,  mr, mg, mb )
+static ttk_color mc_color(int cr, int cg, int cb, int mr, int mg, int mb)
 {       
         if( ttk_screen->bpp >= 16 ) {
                 return( ttk_makecol( cr, cg, cb ));
