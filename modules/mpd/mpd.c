@@ -125,7 +125,7 @@ static void init_conf()
 				"input {\n\tplugin \"curl\"\n}\n"
 				"decoder {\n\tplugin \"hybrid_dsd\"\n\tenabled \"no\"\n}\n"
 				"decoder {\n\tplugin \"wildmidi\"\n\tenabled \"no\"\n}\n"
-				"audio_output {\n\ttype \"alsa\"\n\tname \"My ALSA Device\"\n}\n",
+				"audio_output {\n\ttype \"pipewire\"\n\tname \"Pipewire Output\"\n}\n",
 				mpd_dir, mpd_dir, mpd_dir, mpd_dir, mpd_dir, mpd_dir);
 		fclose(fconf);
 	}

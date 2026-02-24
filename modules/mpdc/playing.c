@@ -98,20 +98,16 @@ static void mcp_draw_percent(PzWidget *wid, ttk_surface srf, int per)
 	const int h = 9;
 
 	if (ttk_ap_get("music.bar.bg"))
-		ttk_ap_fillrect(srf, ttk_ap_get("music.bar.bg"), x,y,x+w+1,y+h);
+		ttk_ap_fillrect(srf, ttk_ap_get("music.bar.bg"), x, y, x+w+1, y+h);
 	switch (multibar.state) {
 	case POSITION:
 	case VOLUME_S:
-		ttk_ap_fillrect(srf, ttk_ap_get("music.bar"),
-				x, y, x + pw + 1, y + h);
+		ttk_ap_fillrect(srf, ttk_ap_get("music.bar"), x, y, x + pw + 1, y + h);
 		break;
 	case SEEK:
-		ttk_ap_rect(srf, ttk_ap_get("scroll.bar"),
-				x, y+h/2, x + w, y+h/2);
-		ttk_ap_rect(srf, ttk_ap_get("scroll.bar"), x+pw, y, x+pw,
-				y +(h - 1));
-		ttk_ellipse(srf, x+pw, y+h/2, h/4, h/4,
-			ttk_ap_getx("window.fg")->color);
+		ttk_ap_rect(srf, ttk_ap_get("scroll.bar"), x, y+h/2, x + w, y+h/2);
+		ttk_ap_rect(srf, ttk_ap_get("scroll.bar"), x+pw, y, x+pw, y +(h - 1));
+		ttk_ellipse(srf, x+pw, y+h/2, h/4, h/4,	ttk_ap_getx("window.fg")->color);
 		break;
 	}
 
@@ -119,10 +115,14 @@ static void mcp_draw_percent(PzWidget *wid, ttk_surface srf, int per)
 		ttk_ap_rect(srf, ttk_ap_get("music.bar.border"), x,y,x+w+1,y+h);
 	}
 	else {
-		ttk_ap_hline(srf, ttk_ap_get("window.fg"), x, x + w, y - 1);
-		ttk_ap_hline(srf, ttk_ap_get("window.fg"), x, x + w, y + h);
-		ttk_ap_vline(srf, ttk_ap_get("window.fg"), x - 1, y, y +(h - 1));
-		ttk_ap_vline(srf, ttk_ap_get("window.fg"), x+w+1, y, y +(h - 1));
+		ttk_ap_hline(srf, ttk_ap_get("window.fg"), x + 1,		x + w - 1, 	y - 1);
+		ttk_ap_hline(srf, ttk_ap_get("window.fg"), x + 1, 		x + w - 1, 	y + h);
+		ttk_ap_vline(srf, ttk_ap_get("window.fg"), x - 1, 		y + 1, 		y + h - 2);
+		ttk_ap_vline(srf, ttk_ap_get("window.fg"), x + w + 1, 	y + 1, 		y + h - 2);
+		ttk_pixel(srf, x, 	y, 			ttk_ap_getx("window.fg")->color);
+		ttk_pixel(srf, x, 	y + h - 1, 	ttk_ap_getx("window.fg")->color);
+		ttk_pixel(srf, x + w, 	y, 			ttk_ap_getx("window.fg")->color);
+		ttk_pixel(srf, x + w, 	y + h - 1, 	ttk_ap_getx("window.fg")->color);
 	}
 }
 
@@ -153,18 +153,24 @@ static void mcp_draw_volume(PzWidget *wid, ttk_surface srf)
 static void mcp_draw_position(PzWidget *wid, ttk_surface srf)
 {
 	char tmp[20];
-	int w, h;
+	int w;
+	int h = ttk_text_height(ttk_textfont);
+	int x_padding = wid->w / 12;
+	int y_padding = 8;
+	int y_pos = wid->h - (y_padding + h);
 
-	h = ttk_text_height(ttk_textfont);
 	mcp_draw_percent(wid, srf, status.totalTime ?
 			(status.elapsedTime * 100 / status.totalTime) : 100);
+	
+	// Elapse time
 	num2time(status.totalTime ? status.elapsedTime : 0, tmp);
-	ttk_text(srf, ttk_textfont, wid->w / 12, wid->h -
-			(8 + h), ttk_ap_getx("window.fg")->color, tmp);
+	ttk_text(srf, ttk_textfont, x_padding, y_pos, ttk_ap_getx("window.fg")->color, tmp);
+	
+	// Time remaining
 	num2time(status.totalTime ? (status.totalTime - status.elapsedTime) :
 			status.elapsedTime, tmp);
 	w = ttk_text_width(ttk_textfont,  tmp);
-	ttk_text(srf, ttk_textfont, wid->w - wid->w / 12 - w, wid->h - (8 + h),
+	ttk_text(srf, ttk_textfont, (wid->w - w - x_padding), y_pos,
 			ttk_ap_getx("window.fg")->color, tmp);
 }
 
