@@ -54,7 +54,7 @@ static PzWindow *bt_scan(void)
 
     pz_message("Scanning for devices...");
     // system("timeout 10 btmgmt find > /tmp/bt_devices.txt");
-    system("btmgmt find -L > /tmp/bt_devices.txt");
+    system("btmgmt find > /tmp/bt_devices.txt");
     pz_message("Scan complete.");
 
     return (PzWindow *)PZ_MENU_DONOTHING;
@@ -72,6 +72,26 @@ static PzWindow *bt_connect_helper(struct ttk_menu_item *item)
     if (system(cmd) == 0)
     {
         pz_message("Paired");
+    }
+    else
+    {
+        pz_message("Pairing Failed");
+    }
+
+    snprintf(cmd, sizeof(cmd), "bluetoothctl trust %s", mac);
+    if (system(cmd) == 0)
+    {
+        pz_message("Trusted");
+    }
+    else
+    {
+        pz_message("Trusting Failed");
+    }
+
+    snprintf(cmd, sizeof(cmd), "bluetoothctl connect %s", mac);
+    if (system(cmd) == 0)
+    {
+        pz_message("Connected");
     }
     else
     {
