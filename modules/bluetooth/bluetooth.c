@@ -16,6 +16,22 @@ static void bt_cleanup(void)
 {
 }
 
+void bt_power(u_int8_t enable, u_int8_t show_message)
+{
+    if (enable)
+    {
+        system("btmgmt power on");
+        if (show_message)
+            pz_message("Bluetooth Enabled");
+    }
+    else
+    {
+        system("btmgmt power off");
+        if (show_message)
+            pz_message("Bluetooth Disabled");
+    }
+}
+
 static PzWindow *bt_toggle_power(void)
 {
     int enabled = pz_get_int_setting(bt_config, BT_SETTING_ENABLED);
@@ -23,27 +39,24 @@ static PzWindow *bt_toggle_power(void)
     pz_set_int_setting(bt_config, BT_SETTING_ENABLED, enabled);
     pz_save_config(bt_config);
 
-    if (enabled) {
-        system("bluetoothctl power on");
-        pz_message("Bluetooth Enabled");
-    } else {
-        system("bluetoothctl power off");
-        pz_message("Bluetooth Disabled");
-    }
+    bt_power(enabled, 1);
 
     return (PzWindow *)PZ_MENU_DONOTHING;
 }
 
 static PzWindow *bt_scan(void)
 {
-    if (!pz_get_int_setting(bt_config, BT_SETTING_ENABLED)) {
+    if (!pz_get_int_setting(bt_config, BT_SETTING_ENABLED))
+    {
         pz_error("Bluetooth is disabled.\nPlease enable it first.");
         return (PzWindow *)PZ_MENU_DONOTHING;
     }
 
-    pz_message("Scanning for devices (5s)...");
-    system("timeout 5 bluetoothctl scan on");
+    pz_message("Scanning for devices...");
+    // system("timeout 10 btmgmt find > /tmp/bt_devices.txt");
+    system("btmgmt find -L > /tmp/bt_devices.txt");
     pz_message("Scan complete.");
+
     return (PzWindow *)PZ_MENU_DONOTHING;
 }
 
@@ -52,22 +65,65 @@ static PzWindow *bt_connect_helper(struct ttk_menu_item *item)
     char cmd[512];
     char *mac = (char *)item->data;
 
-    if (!mac) return (PzWindow *)PZ_MENU_DONOTHING;
+    if (!mac)
+        return (PzWindow *)PZ_MENU_DONOTHING;
 
-    snprintf(cmd, sizeof(cmd), "timeout 15 bluetoothctl pair %s", mac);
-    system(cmd);
-
-    snprintf(cmd, sizeof(cmd), "timeout 5 bluetoothctl trust %s", mac);
-    system(cmd);
-
-    snprintf(cmd, sizeof(cmd), "timeout 15 bluetoothctl connect %s", mac);
-    if (system(cmd) == 0) {
-        pz_message("Connected");
-    } else {
+    snprintf(cmd, sizeof(cmd), "btmgmt pair %s", mac);
+    if (system(cmd) == 0)
+    {
+        pz_message("Paired");
+    }
+    else
+    {
         pz_message("Connection Failed");
     }
 
     return (PzWindow *)PZ_MENU_DONOTHING;
+}
+
+struct mac_list
+{
+    char *mac;
+    struct mac_list *next;
+};
+
+static void bt_add_device(TWidget *menu, struct mac_list **seen_macs, char *mac, char *name)
+{
+    struct mac_list *node;
+    ttk_menu_item *item;
+
+    /* Check for duplicates */
+    for (node = *seen_macs; node; node = node->next)
+    {
+        if (strcmp(node->mac, mac) == 0)
+        {
+            return;
+        }
+    }
+
+    node = malloc(sizeof(struct mac_list));
+    if (node)
+    {
+        node->mac = strdup(mac);
+        node->next = *seen_macs;
+        *seen_macs = node;
+    }
+
+    item = calloc(1, sizeof(ttk_menu_item));
+    if (!item)
+        return;
+
+    if (name && name[0])
+        item->name = strdup(name);
+    else
+        item->name = strdup(mac);
+
+    item->makesub = bt_connect_helper;
+    item->data = strdup(mac);
+    item->free_name = 1;
+    item->free_data = 1;
+
+    ttk_menu_append(menu, item);
 }
 
 static PzWindow *bt_list_devices(void)
@@ -76,42 +132,84 @@ static PzWindow *bt_list_devices(void)
     char line[256];
     TWidget *menu;
     PzWindow *win;
+    struct mac_list *seen_macs = NULL;
+    char current_mac[64] = {0};
+    char current_name[256] = {0};
 
-    if (!pz_get_int_setting(bt_config, BT_SETTING_ENABLED)) {
+    if (!pz_get_int_setting(bt_config, BT_SETTING_ENABLED))
+    {
         pz_error("Bluetooth is disabled.");
         return (PzWindow *)PZ_MENU_DONOTHING;
     }
 
-    menu = ttk_new_menu_widget(NULL, ttk_menufont, 0, 0);
-    if (!menu) return (PzWindow *)PZ_MENU_DONOTHING;
+    menu = ttk_new_menu_widget(NULL, ttk_menufont, ttk_screen->w -
+			ttk_screen->wx, ttk_screen->h - ttk_screen->wy);
+    if (!menu)
+    {
+        printf("Unable to create menu widget\n");
+        return (PzWindow *)PZ_MENU_DONOTHING;
+    }
 
-    system("bluetoothctl devices > /tmp/bt_devices.txt");
     fp = fopen("/tmp/bt_devices.txt", "r");
-    if (fp) {
-        while (fgets(line, sizeof(line), fp)) {
-            char *mac, *name;
-            ttk_menu_item item;
-            
-            if (strncmp(line, "Device ", 7) != 0) continue;
-            
-            mac = strtok(line + 7, " \n");
-            name = strtok(NULL, "\n");
-            if (!mac || !name) continue;
+    if (fp)
+    {
+        while (fgets(line, sizeof(line), fp))
+        {
+            char *mac_start, *name_start;
 
-            memset(&item, 0, sizeof(item));
-            item.name = strdup(name);
-            item.makesub = bt_connect_helper;
-            item.data = strdup(mac);
-            item.free_name = 1;
-            item.free_data = 1;
-            
-            ttk_menu_append(menu, &item);
+            if ((mac_start = strstr(line, "dev_found:")))
+            {
+                /* Add previous device if exists */
+                if (current_mac[0])
+                {
+                    bt_add_device(menu, &seen_macs, current_mac, current_name);
+                }
+
+                /* Reset for new device */
+                memset(current_mac, 0, sizeof(current_mac));
+                memset(current_name, 0, sizeof(current_name));
+
+                mac_start += 10;
+                while (*mac_start == ' ')
+                    mac_start++;
+                char *mac_end = strchr(mac_start, ' ');
+                if (mac_end)
+                    *mac_end = 0;
+                strncpy(current_mac, mac_start, sizeof(current_mac) - 1);
+            }
+            else if ((name_start = strstr(line, "name ")) && current_mac[0])
+            {
+                name_start += 5;
+                char *name_end = strchr(name_start, '\n');
+                if (name_end)
+                    *name_end = 0;
+                strncpy(current_name, name_start, sizeof(current_name) - 1);
+            }
+        }
+        /* Add last device */
+        if (current_mac[0])
+        {
+            bt_add_device(menu, &seen_macs, current_mac, current_name);
         }
         fclose(fp);
+    }
+    else
+    {
+        pz_message("No devices found.\nPlease scan first.");
+    }
+
+    /* Free seen list */
+    while (seen_macs)
+    {
+        struct mac_list *next = seen_macs->next;
+        free(seen_macs->mac);
+        free(seen_macs);
+        seen_macs = next;
     }
 
     win = pz_new_menu_window(menu);
     ttk_window_set_title(win, strdup("Devices"));
+    win->data = 0x12345678;
     return win;
 }
 
@@ -124,11 +222,7 @@ static void init_bluetooth(void)
     if (!pz_get_setting(bt_config, BT_SETTING_ENABLED))
         pz_set_int_setting(bt_config, BT_SETTING_ENABLED, 0);
 
-    if (pz_get_int_setting(bt_config, BT_SETTING_ENABLED)) {
-        system("bluetoothctl power on");
-    } else {
-        system("bluetoothctl power off");
-    }
+    bt_power(pz_get_int_setting(bt_config, BT_SETTING_ENABLED), 0);
 
     /* Add menu items */
     pz_menu_add_action("/Settings/Bluetooth/Toggle Power", bt_toggle_power);

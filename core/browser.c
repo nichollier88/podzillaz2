@@ -283,13 +283,19 @@ static int is_ascii_file(const char *filename)
 	return 1;
 }
 
+size_t strlen_safe(const char *__s) {
+	if (__s == NULL)
+		return 0;
+	return strlen(__s);
+}
+
 int check_ext(const char *file, const char *ext)
 {
 	struct stat st;
 	stat (file, &st);
 	char *file_ext = strrchr(file, '.');
-	int length = strlen(file_ext);
-	if (length != strlen(ext)) return 0;
+	int length = strlen_safe(file_ext);
+	if (length != strlen_safe(ext)) return 0;
 	int i;
 	for (i = 0; i < length; i++) {
 		if ( file_ext[i] != ext[i] && file_ext[i] != ext[i]-32 ){
