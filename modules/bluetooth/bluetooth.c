@@ -16,7 +16,25 @@ static PzConfig *bt_config;
 
 int is_bt_enabled()
 {
-    int enabled = pz_get_int_setting(bt_config, BT_SETTING_ENABLED);
+    FILE *fp;
+    char line[256];
+    int enabled = 0;
+
+    fp = popen("bluetoothctl show", "r");
+    if (fp == NULL) {
+        pz_error("Failed to run bluetoothctl");
+        return 0;
+    }
+
+    while (fgets(line, sizeof(line), fp) != NULL) {
+        if (strstr(line, "Powered: yes") != NULL) {
+            enabled = 1;
+            break;
+        }
+    }
+
+    pclose(fp);
+
     if (!enabled)
         pz_error("Bluetooth is disabled.\nPlease enable it first.");
     return enabled;
