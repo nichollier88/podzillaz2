@@ -165,34 +165,13 @@ static PzWindow *bt_connect_helper(struct ttk_menu_item *item)
         return (PzWindow *)PZ_MENU_DONOTHING;
 
     snprintf(cmd, sizeof(cmd), "btmgmt pair %s", mac);
-    if (system(cmd) == 0)
-    {
-        pz_message("Paired");
-    }
-    else
-    {
-        pz_message("Pairing Failed");
-    }
+    pz_message((system(cmd) == 0) ? "Paired" : "Pairing Failed");
 
     snprintf(cmd, sizeof(cmd), "bluetoothctl trust %s", mac);
-    if (system(cmd) == 0)
-    {
-        pz_message("Trusted");
-    }
-    else
-    {
-        pz_message("Trusting Failed");
-    }
+    pz_message((system(cmd) == 0) ? "Trusted" : "Trusting Failed");
 
     snprintf(cmd, sizeof(cmd), "bluetoothctl connect %s", mac);
-    if (system(cmd) == 0)
-    {
-        pz_message("Connected");
-    }
-    else
-    {
-        pz_message("Connection Failed");
-    }
+    pz_message((system(cmd) == 0) ? "Connected" : "Connection Failed");
 
     return (PzWindow *)PZ_MENU_DONOTHING;
 }
@@ -241,6 +220,101 @@ static void bt_add_device(TWidget *menu, struct mac_list **seen_macs, char *mac,
 
     ttk_menu_append(menu, item);
 }
+
+static PzWindow *bt_disconnect_helper(struct ttk_menu_item *item)
+{
+    char cmd[512];
+    char *mac = (char *)item->data;
+
+    if (!mac)
+        return (PzWindow *)PZ_MENU_DONOTHING;
+
+    snprintf(cmd, sizeof(cmd), "bluetoothctl disconnect %s", mac);
+    pz_message((system(cmd) == 0) ? "Disconnected" : "Disconnection Failed");
+
+    return (PzWindow *)PZ_MENU_DONOTHING;
+}
+
+static PzWindow *bt_list_connected_devices(void)
+{
+    FILE *fp;
+    char line[256];
+    TWidget *menu;
+    PzWindow *win;
+    struct mac_list *seen_macs = NULL;
+
+    if (!is_bt_enabled())
+        return (PzWindow *)PZ_MENU_DONOTHING;
+
+    menu = ttk_new_menu_widget(NULL, ttk_menufont, ttk_screen->w - ttk_screen->wx, ttk_screen->h - ttk_screen->wy);
+    if (!menu)
+    {
+        printf("Unable to create menu widget\n");
+        return (PzWindow *)PZ_MENU_DONOTHING;
+    }
+
+    fp = popen("bluetoothctl devices Connected", "r");
+    if (fp)
+    {
+        int found = 0;
+        while (fgets(line, sizeof(line), fp))
+        {
+            char current_mac[64] = {0};
+            char current_name[256] = {0};
+
+            /* Expected format: Device MAC_ADDRESS Name */
+            if (strncmp(line, "Device ", 7) == 0)
+            {
+                char *mac_start = line + 7;
+                char *mac_end = strchr(mac_start, ' ');
+                if (mac_end)
+                {
+                    *mac_end = '\0';
+                    strncpy(current_mac, mac_start, sizeof(current_mac) - 1);
+
+                    char *name_start = mac_end + 1;
+                    char *name_end = strchr(name_start, '\n');
+                    if (name_end)
+                        *name_end = '\0';
+                    strncpy(current_name, name_start, sizeof(current_name) - 1);
+
+                    bt_add_device(menu, &seen_macs, current_mac, current_name);
+                    found = 1;
+
+                    /* Change the action of the last added item to disconnect */
+                    ttk_menu_item *item = ((ttk_menu*)menu)->list;
+                    while (item && item->next)
+                        item = item->next;
+                    if (item)
+                        item->makesub = bt_disconnect_helper;
+                }
+            }
+        }
+        pclose(fp);
+
+        if (!found)
+            pz_message("No connected devices.");
+    }
+    else
+    {
+        pz_error("Failed to list connected devices.");
+    }
+
+    /* Free seen list */
+    while (seen_macs)
+    {
+        struct mac_list *next = seen_macs->next;
+        free(seen_macs->mac);
+        free(seen_macs);
+        seen_macs = next;
+    }
+
+    win = pz_new_menu_window(menu);
+    ttk_window_set_title(win, strdup("Connected Devices"));
+    win->data = 0x12345678;
+    return win;
+}
+
 
 static PzWindow *bt_list_devices(void)
 {
@@ -342,6 +416,7 @@ static void init_bluetooth(void)
     item->choicechanged = bt_power_changed;
     pz_menu_add_action("/Settings/Bluetooth/Scan Devices", bt_scan);
     pz_menu_add_action("/Settings/Bluetooth/Devices", bt_list_devices);
+    pz_menu_add_action("/Settings/Bluetooth/Connected", bt_list_connected_devices);
 }
 
 PZ_MOD_INIT(init_bluetooth)
