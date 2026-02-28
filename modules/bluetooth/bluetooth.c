@@ -56,7 +56,7 @@ static void scan_draw(PzWidget *wid, ttk_surface srf)
     
     ttk_fillrect(srf, 0, 0, wid->w, wid->h, ttk_ap_getx("window.bg")->color);
     
-    snprintf(text, sizeof(text), "Scanning for devices %c", spinner[data->spinner_state % 4]);
+    snprintf(text, sizeof(text), "%c", spinner[data->spinner_state % 4]);
     ttk_text(srf, ttk_textfont, (wid->w - ttk_text_width(ttk_textfont, text)) / 2,
              (wid->h - ttk_text_height(ttk_textfont)) / 2, ttk_ap_getx("window.fg")->color, text);
 }
