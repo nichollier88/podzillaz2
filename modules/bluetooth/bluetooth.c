@@ -6,6 +6,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
+#include <sys/wait.h>
 
 static PzModule *bt_module;
 static PzConfig *bt_config;
@@ -32,16 +34,63 @@ void bt_power(u_int8_t enable, u_int8_t show_message)
     }
 }
 
-static PzWindow *bt_toggle_power(void)
+static void bt_power_changed(ttk_menu_item *item, int sid)
 {
-    int enabled = pz_get_int_setting(bt_config, BT_SETTING_ENABLED);
-    enabled = !enabled;
+    int enabled = item->choice;
     pz_set_int_setting(bt_config, BT_SETTING_ENABLED, enabled);
     pz_save_config(bt_config);
 
     bt_power(enabled, 1);
+}
 
-    return (PzWindow *)PZ_MENU_DONOTHING;
+typedef struct {
+    pid_t scan_pid;
+    int spinner_state;
+} bt_scan_data;
+
+static void scan_draw(PzWidget *wid, ttk_surface srf)
+{
+    bt_scan_data *data = (bt_scan_data *)wid->win->data;
+    char text[64];
+    const char spinner[] = {'|', '/', '-', '\\'};
+    
+    ttk_fillrect(srf, 0, 0, wid->w, wid->h, ttk_ap_getx("window.bg")->color);
+    
+    snprintf(text, sizeof(text), "Scanning for devices %c", spinner[data->spinner_state % 4]);
+    ttk_text(srf, ttk_textfont, (wid->w - ttk_text_width(ttk_textfont, text)) / 2,
+             (wid->h - ttk_text_height(ttk_textfont)) / 2, ttk_ap_getx("window.fg")->color, text);
+}
+
+static int scan_loop(TWidget *this)
+{
+    bt_scan_data *data = (bt_scan_data *)this->win->data;
+    int status;
+    
+    data->spinner_state++;
+    this->dirty = 1;
+    
+    if (waitpid(data->scan_pid, &status, WNOHANG) > 0) {
+        pz_message("Scan complete.");
+        pz_close_window(this->win);
+    }
+    
+    return 0;
+}
+
+static int scan_handle_event(PzEvent *e)
+{
+    if (e->type == PZ_EVENT_BUTTON_DOWN && e->arg == PZ_BUTTON_MENU) {
+        bt_scan_data *data = (bt_scan_data *)e->wid->win->data;
+        kill(data->scan_pid, SIGTERM);
+        pz_close_window(e->wid->win);
+        return TTK_EV_DONE;
+    }
+    return TTK_EV_UNUSED;
+}
+
+static void scan_destroy(TWidget *this)
+{
+    free(this->win->data);
 }
 
 static PzWindow *bt_scan(void)
@@ -52,12 +101,28 @@ static PzWindow *bt_scan(void)
         return (PzWindow *)PZ_MENU_DONOTHING;
     }
 
-    pz_message("Scanning for devices...");
-    // system("timeout 10 btmgmt find > /tmp/bt_devices.txt");
-    system("btmgmt find > /tmp/bt_devices.txt");
-    pz_message("Scan complete.");
-
-    return (PzWindow *)PZ_MENU_DONOTHING;
+    pid_t pid = vfork();
+    if (pid == 0) {
+        execl("/bin/sh", "sh", "-c", "btmgmt find > /tmp/bt_devices.txt", NULL);
+        exit(1);
+    } else if (pid > 0) {
+        PzWindow *win = pz_new_window(_("Scanning..."), PZ_WINDOW_NORMAL);
+        PzWidget *wid = pz_add_widget(win, scan_draw, scan_handle_event);
+        
+        bt_scan_data *data = malloc(sizeof(bt_scan_data));
+        data->scan_pid = pid;
+        data->spinner_state = 0;
+        win->data = data;
+        
+        ttk_widget_set_timer(wid, 250);
+        wid->timer = scan_loop;
+        wid->destroy = scan_destroy;
+        
+        return pz_finish_window(win);
+    } else {
+        pz_error("Failed to start scan process.");
+        return (PzWindow *)PZ_MENU_DONOTHING;
+    }
 }
 
 static PzWindow *bt_connect_helper(struct ttk_menu_item *item)
@@ -163,7 +228,7 @@ static PzWindow *bt_list_devices(void)
     }
 
     menu = ttk_new_menu_widget(NULL, ttk_menufont, ttk_screen->w -
-			ttk_screen->wx, ttk_screen->h - ttk_screen->wy);
+                ttk_screen->wx, ttk_screen->h - ttk_screen->wy);
     if (!menu)
     {
         printf("Unable to create menu widget\n");
@@ -245,7 +310,9 @@ static void init_bluetooth(void)
     bt_power(pz_get_int_setting(bt_config, BT_SETTING_ENABLED), 0);
 
     /* Add menu items */
-    pz_menu_add_action("/Settings/Bluetooth/Toggle Power", bt_toggle_power);
+    ttk_menu_item *item = pz_menu_add_setting(
+        "/Settings/Bluetooth/Toggle Power", BT_SETTING_ENABLED, bt_config, 0);
+    item->choicechanged = bt_power_changed;
     pz_menu_add_action("/Settings/Bluetooth/Scan Devices", bt_scan);
     pz_menu_add_action("/Settings/Bluetooth/Devices", bt_list_devices);
 }
