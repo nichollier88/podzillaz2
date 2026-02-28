@@ -50,7 +50,7 @@ typedef struct {
 
 static void scan_draw(PzWidget *wid, ttk_surface srf)
 {
-    bt_scan_data *data = (bt_scan_data *)wid->win->data;
+    bt_scan_data *data = (bt_scan_data *)wid->data;
     char text[64];
     const char spinner[] = {'|', '/', '-', '\\'};
     
@@ -63,7 +63,7 @@ static void scan_draw(PzWidget *wid, ttk_surface srf)
 
 static int scan_loop(TWidget *this)
 {
-    bt_scan_data *data = (bt_scan_data *)this->win->data;
+    bt_scan_data *data = (bt_scan_data *)this->data;
     int status;
     
     data->spinner_state++;
@@ -80,7 +80,7 @@ static int scan_loop(TWidget *this)
 static int scan_handle_event(PzEvent *e)
 {
     if (e->type == PZ_EVENT_BUTTON_DOWN && e->arg == PZ_BUTTON_MENU) {
-        bt_scan_data *data = (bt_scan_data *)e->wid->win->data;
+        bt_scan_data *data = (bt_scan_data *)e->wid->data;
         kill(data->scan_pid, SIGTERM);
         pz_close_window(e->wid->win);
         return TTK_EV_DONE;
@@ -90,7 +90,7 @@ static int scan_handle_event(PzEvent *e)
 
 static void scan_destroy(TWidget *this)
 {
-    free(this->win->data);
+    free(this->data);
 }
 
 static PzWindow *bt_scan(void)
@@ -112,7 +112,7 @@ static PzWindow *bt_scan(void)
         bt_scan_data *data = malloc(sizeof(bt_scan_data));
         data->scan_pid = pid;
         data->spinner_state = 0;
-        win->data = data;
+        wid->data = data;
         
         ttk_widget_set_timer(wid, 250);
         wid->timer = scan_loop;
