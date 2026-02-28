@@ -14,6 +14,14 @@ static PzConfig *bt_config;
 
 #define BT_SETTING_ENABLED 1
 
+int is_bt_enabled()
+{
+    int enabled = pz_get_int_setting(bt_config, BT_SETTING_ENABLED);
+    if (!enabled)
+        pz_error("Bluetooth is disabled.\nPlease enable it first.");
+    return enabled;
+}
+
 static void bt_cleanup(void)
 {
 }
@@ -43,7 +51,8 @@ static void bt_power_changed(ttk_menu_item *item, int sid)
     bt_power(enabled, 1);
 }
 
-typedef struct {
+typedef struct
+{
     pid_t scan_pid;
     int spinner_state;
 } bt_scan_data;
@@ -53,9 +62,9 @@ static void scan_draw(PzWidget *wid, ttk_surface srf)
     bt_scan_data *data = (bt_scan_data *)wid->data;
     char text[64];
     const char spinner[] = {'|', '/', '-', '\\'};
-    
+
     ttk_fillrect(srf, 0, 0, wid->w, wid->h, ttk_ap_getx("window.bg")->color);
-    
+
     snprintf(text, sizeof(text), "%c", spinner[data->spinner_state % 4]);
     ttk_text(srf, ttk_textfont, (wid->w - ttk_text_width(ttk_textfont, text)) / 2,
              (wid->h - ttk_text_height(ttk_textfont)) / 2, ttk_ap_getx("window.fg")->color, text);
@@ -65,21 +74,23 @@ static int scan_loop(TWidget *this)
 {
     bt_scan_data *data = (bt_scan_data *)this->data;
     int status;
-    
+
     data->spinner_state++;
     this->dirty = 1;
-    
-    if (waitpid(data->scan_pid, &status, WNOHANG) > 0) {
+
+    if (waitpid(data->scan_pid, &status, WNOHANG) > 0)
+    {
         pz_message("Scan complete.");
         pz_close_window(this->win);
     }
-    
+
     return 0;
 }
 
 static int scan_handle_event(PzEvent *e)
 {
-    if (e->type == PZ_EVENT_BUTTON_DOWN && e->arg == PZ_BUTTON_MENU) {
+    if (e->type == PZ_EVENT_BUTTON_DOWN && e->arg == PZ_BUTTON_MENU)
+    {
         bt_scan_data *data = (bt_scan_data *)e->wid->data;
         kill(data->scan_pid, SIGTERM);
         pz_close_window(e->wid->win);
@@ -95,31 +106,33 @@ static void scan_destroy(TWidget *this)
 
 static PzWindow *bt_scan(void)
 {
-    if (!pz_get_int_setting(bt_config, BT_SETTING_ENABLED))
-    {
-        pz_error("Bluetooth is disabled.\nPlease enable it first.");
+    if (!is_bt_enabled())
         return (PzWindow *)PZ_MENU_DONOTHING;
-    }
 
     pid_t pid = vfork();
-    if (pid == 0) {
+    if (pid == 0)
+    {
         execl("/bin/sh", "sh", "-c", "btmgmt find > /tmp/bt_devices.txt", NULL);
         exit(1);
-    } else if (pid > 0) {
+    }
+    else if (pid > 0)
+    {
         PzWindow *win = pz_new_window(_("Scanning..."), PZ_WINDOW_NORMAL);
         PzWidget *wid = pz_add_widget(win, scan_draw, scan_handle_event);
-        
+
         bt_scan_data *data = malloc(sizeof(bt_scan_data));
         data->scan_pid = pid;
         data->spinner_state = 0;
         wid->data = data;
-        
+
         ttk_widget_set_timer(wid, 250);
         wid->timer = scan_loop;
         wid->destroy = scan_destroy;
-        
+
         return pz_finish_window(win);
-    } else {
+    }
+    else
+    {
         pz_error("Failed to start scan process.");
         return (PzWindow *)PZ_MENU_DONOTHING;
     }
@@ -221,14 +234,10 @@ static PzWindow *bt_list_devices(void)
     char current_mac[64] = {0};
     char current_name[256] = {0};
 
-    if (!pz_get_int_setting(bt_config, BT_SETTING_ENABLED))
-    {
-        pz_error("Bluetooth is disabled.");
+    if (!is_bt_enabled())
         return (PzWindow *)PZ_MENU_DONOTHING;
-    }
 
-    menu = ttk_new_menu_widget(NULL, ttk_menufont, ttk_screen->w -
-                ttk_screen->wx, ttk_screen->h - ttk_screen->wy);
+    menu = ttk_new_menu_widget(NULL, ttk_menufont, ttk_screen->w - ttk_screen->wx, ttk_screen->h - ttk_screen->wy);
     if (!menu)
     {
         printf("Unable to create menu widget\n");
