@@ -182,7 +182,7 @@ struct mac_list
     struct mac_list *next;
 };
 
-static void bt_add_device(TWidget *menu, struct mac_list **seen_macs, char *mac, char *name)
+static void bt_add_device(TWidget *menu, struct mac_list **seen_macs, char *mac, char *name, PzWindow *(*action)(struct ttk_menu_item *))
 {
     struct mac_list *node;
     ttk_menu_item *item;
@@ -213,7 +213,7 @@ static void bt_add_device(TWidget *menu, struct mac_list **seen_macs, char *mac,
     else
         item->name = strdup(mac);
 
-    item->makesub = bt_connect_helper;
+    item->makesub = action;
     item->data = strdup(mac);
     item->free_name = 1;
     item->free_data = 1;
@@ -278,15 +278,8 @@ static PzWindow *bt_list_connected_devices(void)
                         *name_end = '\0';
                     strncpy(current_name, name_start, sizeof(current_name) - 1);
 
-                    bt_add_device(menu, &seen_macs, current_mac, current_name);
+                    bt_add_device(menu, &seen_macs, current_mac, current_name, bt_disconnect_helper);
                     found = 1;
-
-                    /* Change the action of the last added item to disconnect */
-                    ttk_menu_item *item = ((ttk_menu*)menu)->list;
-                    while (item && item->next)
-                        item = item->next;
-                    if (item)
-                        item->makesub = bt_disconnect_helper;
                 }
             }
         }
@@ -348,7 +341,7 @@ static PzWindow *bt_list_devices(void)
                 /* Add previous device if exists */
                 if (current_mac[0])
                 {
-                    bt_add_device(menu, &seen_macs, current_mac, current_name);
+                    bt_add_device(menu, &seen_macs, current_mac, current_name, bt_connect_helper);
                 }
 
                 /* Reset for new device */
@@ -375,7 +368,7 @@ static PzWindow *bt_list_devices(void)
         /* Add last device */
         if (current_mac[0])
         {
-            bt_add_device(menu, &seen_macs, current_mac, current_name);
+            bt_add_device(menu, &seen_macs, current_mac, current_name, bt_connect_helper);
         }
         fclose(fp);
     }
