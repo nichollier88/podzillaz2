@@ -11,6 +11,8 @@
 
 static PzModule *bt_module;
 static PzConfig *bt_config;
+static TWidget *devices_menu_widget = NULL;
+static void bt_populate_devices_menu(TWidget *menu);
 
 #define BT_SETTING_ENABLED 1
 
@@ -103,6 +105,10 @@ static int scan_loop(TWidget *this)
     {
         pz_message("Scan complete.");
         pz_close_window(this->win);
+        if (devices_menu_widget)
+        {
+            bt_populate_devices_menu(devices_menu_widget);
+        }
     }
 
     return 0;
@@ -332,25 +338,15 @@ static PzWindow *bt_refresh_helper(struct ttk_menu_item *item)
     return bt_scan();
 }
 
-static PzWindow *bt_list_devices(void)
+static void bt_populate_devices_menu(TWidget *menu)
 {
     FILE *fp;
     char line[256];
-    TWidget *menu;
-    PzWindow *win;
     struct mac_list *seen_macs = NULL;
     char current_mac[64] = {0};
     char current_name[256] = {0};
 
-    if (!is_bt_enabled())
-        return (PzWindow *)PZ_MENU_DONOTHING;
-
-    menu = ttk_new_menu_widget(NULL, ttk_menufont, ttk_screen->w - ttk_screen->wx, ttk_screen->h - ttk_screen->wy);
-    if (!menu)
-    {
-        printf("Unable to create menu widget\n");
-        return (PzWindow *)PZ_MENU_DONOTHING;
-    }
+    ttk_menu_clear(menu);
 
     ttk_menu_item *refresh_item = calloc(1, sizeof(ttk_menu_item));
     if (refresh_item)
@@ -417,6 +413,36 @@ static PzWindow *bt_list_devices(void)
         free(seen_macs);
         seen_macs = next;
     }
+}
+
+static void (*old_menu_destroy)(TWidget *);
+static void devices_menu_destroy(TWidget *this)
+{
+    devices_menu_widget = NULL;
+    if (old_menu_destroy)
+        old_menu_destroy(this);
+}
+
+static PzWindow *bt_list_devices(void)
+{
+    TWidget *menu;
+    PzWindow *win;
+
+    if (!is_bt_enabled())
+        return (PzWindow *)PZ_MENU_DONOTHING;
+
+    menu = ttk_new_menu_widget(NULL, ttk_menufont, ttk_screen->w - ttk_screen->wx, ttk_screen->h - ttk_screen->wy);
+    if (!menu)
+    {
+        printf("Unable to create menu widget\n");
+        return (PzWindow *)PZ_MENU_DONOTHING;
+    }
+
+    devices_menu_widget = menu;
+    old_menu_destroy = menu->destroy;
+    menu->destroy = devices_menu_destroy;
+
+    bt_populate_devices_menu(menu);
 
     win = pz_new_menu_window(menu);
     ttk_window_set_title(win, strdup("Devices"));
