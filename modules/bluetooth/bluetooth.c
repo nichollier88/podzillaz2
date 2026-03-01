@@ -168,14 +168,29 @@ static PzWindow *bt_connect_helper(struct ttk_menu_item *item)
         return (PzWindow *)PZ_MENU_DONOTHING;
 
     snprintf(cmd, sizeof(cmd), "btmgmt pair %s", mac);
-    pz_message((system(cmd) == 0) ? "Paired" : "Pairing Failed");
+    if (system(cmd) != 0)
+    {
+        pz_error("Pairing Failed");
+        goto EXIT_BT_CONNECT;
+    }
 
     snprintf(cmd, sizeof(cmd), "bluetoothctl trust %s", mac);
-    pz_message((system(cmd) == 0) ? "Trusted" : "Trusting Failed");
+    if (system(cmd) != 0)
+    {
+        pz_error("Trusting Failed");
+        goto EXIT_BT_CONNECT;
+    }
 
     snprintf(cmd, sizeof(cmd), "bluetoothctl connect %s", mac);
-    pz_message((system(cmd) == 0) ? "Connected" : "Connection Failed");
+    if (system(cmd) != 0)
+    {
+        pz_error("Connection Failed");
+        goto EXIT_BT_CONNECT;
+    }
 
+    pz_message("Connected");
+
+EXIT_BT_CONNECT:
     return (PzWindow *)PZ_MENU_DONOTHING;
 }
 
@@ -311,6 +326,12 @@ static PzWindow *bt_list_connected_devices(void)
     return win;
 }
 
+static PzWindow *bt_refresh_helper(struct ttk_menu_item *item)
+{
+    (void)item;
+    return bt_scan();
+}
+
 static PzWindow *bt_list_devices(void)
 {
     FILE *fp;
@@ -329,6 +350,15 @@ static PzWindow *bt_list_devices(void)
     {
         printf("Unable to create menu widget\n");
         return (PzWindow *)PZ_MENU_DONOTHING;
+    }
+
+    ttk_menu_item *refresh_item = calloc(1, sizeof(ttk_menu_item));
+    if (refresh_item)
+    {
+        refresh_item->name = strdup("Refresh...");
+        refresh_item->makesub = bt_refresh_helper;
+        refresh_item->free_name = 1;
+        ttk_menu_append(menu, refresh_item);
     }
 
     fp = fopen("/tmp/bt_devices.txt", "r");
