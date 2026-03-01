@@ -259,7 +259,76 @@ static PzWindow *bt_disconnect_helper(struct ttk_menu_item *item)
     return (PzWindow *)PZ_MENU_DONOTHING;
 }
 
-static PzWindow *bt_list_connected_devices(void)
+static int bt_check_connected(const char *mac)
+{
+    char cmd[512];
+    char line[256];
+    FILE *fp;
+    int connected = 0;
+
+    snprintf(cmd, sizeof(cmd), "bluetoothctl info %s", mac);
+    fp = popen(cmd, "r");
+    if (fp)
+    {
+        while (fgets(line, sizeof(line), fp))
+        {
+            if (strstr(line, "Connected: yes"))
+            {
+                connected = 1;
+                break;
+            }
+        }
+        pclose(fp);
+    }
+    return connected;
+}
+
+static void bt_get_active_audio_mac(char *out_mac, size_t max_len)
+{
+    FILE *fp = popen("wpctl status", "r");
+    char line[256];
+    
+    if (out_mac && max_len > 0)
+        out_mac[0] = '\0';
+        
+    if (!fp)
+        return;
+
+    int in_default_section = 0;
+
+    while (fgets(line, sizeof(line), fp))
+    {
+        if (strstr(line, "Default Configured Devices:"))
+        {
+            in_default_section = 1;
+        }
+        else if (in_default_section && strstr(line, "Audio/Sink"))
+        {
+            char *p = strstr(line, "bluez_output.");
+            if (p)
+            {
+                p += 13; /* skip "bluez_output." */
+                int i = 0;
+                while (*p && *p != '.' && i < max_len - 1 && i < 17)
+                {
+                    out_mac[i] = (*p == '_') ? ':' : *p;
+                    p++;
+                    i++;
+                }
+                out_mac[i] = '\0';
+            }
+            break;
+        }
+        else if (in_default_section && line[0] != ' ' && line[0] != '\t' && line[0] != '\n')
+        {
+            /* Exited section */
+            break;
+        }
+    }
+    pclose(fp);
+}
+
+static PzWindow *bt_list_paired_devices(void)
 {
     FILE *fp;
     char line[256];
@@ -277,7 +346,7 @@ static PzWindow *bt_list_connected_devices(void)
         return (PzWindow *)PZ_MENU_DONOTHING;
     }
 
-    fp = popen("bluetoothctl devices Connected", "r");
+    fp = popen("bluetoothctl devices Paired", "r");
     if (fp)
     {
         int found = 0;
@@ -302,7 +371,24 @@ static PzWindow *bt_list_connected_devices(void)
                         *name_end = '\0';
                     strncpy(current_name, name_start, sizeof(current_name) - 1);
 
-                    bt_add_device(menu, &seen_macs, current_mac, current_name, bt_disconnect_helper);
+                    char active_audio_mac[64] = {0};
+                    char display_name[512];
+                    int connected = 0;
+                    int is_audio = 0;
+
+                    connected = bt_check_connected(current_mac);
+                    bt_get_active_audio_mac(active_audio_mac, sizeof(active_audio_mac));
+
+                    if (strcasecmp(current_mac, active_audio_mac) == 0)
+                        is_audio = 1;
+
+                    snprintf(display_name, sizeof(display_name), "%s%s%s", 
+                             is_audio ? "[A] " : "", 
+                             connected ? "[C] " : "", 
+                             current_name[0] ? current_name : current_mac);
+
+                    bt_add_device(menu, &seen_macs, current_mac, display_name, 
+                                  connected ? bt_disconnect_helper : bt_connect_helper);
                     found = 1;
                 }
             }
@@ -310,11 +396,11 @@ static PzWindow *bt_list_connected_devices(void)
         pclose(fp);
 
         if (!found)
-            pz_message("No connected devices.");
+            pz_message("No paired devices.");
     }
     else
     {
-        pz_error("Failed to list connected devices.");
+        pz_error("Failed to list paired devices.");
     }
 
     /* Free seen list */
@@ -327,7 +413,7 @@ static PzWindow *bt_list_connected_devices(void)
     }
 
     win = pz_new_menu_window(menu);
-    ttk_window_set_title(win, strdup("Connected"));
+    ttk_window_set_title(win, strdup("Paired"));
     win->data = 0x12345678;
     return win;
 }
@@ -465,9 +551,8 @@ static void init_bluetooth(void)
     ttk_menu_item *item =
         pz_menu_add_setting("/Settings/Bluetooth/Toggle Power", BT_SETTING_ENABLED, bt_config, 0);
     item->choicechanged = bt_power_changed;
-    pz_menu_add_action("/Settings/Bluetooth/Scan", bt_scan);
     pz_menu_add_action("/Settings/Bluetooth/Devices", bt_list_devices);
-    pz_menu_add_action("/Settings/Bluetooth/Connected", bt_list_connected_devices);
+    pz_menu_add_action("/Settings/Bluetooth/Paired", bt_list_paired_devices);
 }
 
 PZ_MOD_INIT(init_bluetooth)
