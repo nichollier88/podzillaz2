@@ -21,13 +21,16 @@ int is_bt_enabled()
     int enabled = 0;
 
     fp = popen("bluetoothctl show", "r");
-    if (fp == NULL) {
+    if (fp == NULL)
+    {
         pz_error("Failed to run bluetoothctl");
         return 0;
     }
 
-    while (fgets(line, sizeof(line), fp) != NULL) {
-        if (strstr(line, "Powered: yes") != NULL) {
+    while (fgets(line, sizeof(line), fp) != NULL)
+    {
+        if (strstr(line, "Powered: yes") != NULL)
+        {
             enabled = 1;
             break;
         }
@@ -229,8 +232,8 @@ static PzWindow *bt_disconnect_helper(struct ttk_menu_item *item)
     if (!mac)
         return (PzWindow *)PZ_MENU_DONOTHING;
 
-    snprintf(cmd, sizeof(cmd), "bluetoothctl disconnect %s", mac);
-    pz_message((system(cmd) == 0) ? "Disconnected" : "Disconnection Failed");
+    snprintf(cmd, sizeof(cmd), "btmgmt unpair %s", mac);
+    pz_message((system(cmd) == 0) ? "Unpaired" : "Unpairing Failed");
 
     return (PzWindow *)PZ_MENU_DONOTHING;
 }
@@ -303,11 +306,10 @@ static PzWindow *bt_list_connected_devices(void)
     }
 
     win = pz_new_menu_window(menu);
-    ttk_window_set_title(win, strdup("Connected Devices"));
+    ttk_window_set_title(win, strdup("Connected"));
     win->data = 0x12345678;
     return win;
 }
-
 
 static PzWindow *bt_list_devices(void)
 {
@@ -404,10 +406,10 @@ static void init_bluetooth(void)
     bt_power(pz_get_int_setting(bt_config, BT_SETTING_ENABLED), 0);
 
     /* Add menu items */
-    ttk_menu_item *item = pz_menu_add_setting(
-        "/Settings/Bluetooth/Toggle Power", BT_SETTING_ENABLED, bt_config, 0);
+    ttk_menu_item *item =
+        pz_menu_add_setting("/Settings/Bluetooth/Toggle Power", BT_SETTING_ENABLED, bt_config, 0);
     item->choicechanged = bt_power_changed;
-    pz_menu_add_action("/Settings/Bluetooth/Scan Devices", bt_scan);
+    pz_menu_add_action("/Settings/Bluetooth/Scan", bt_scan);
     pz_menu_add_action("/Settings/Bluetooth/Devices", bt_list_devices);
     pz_menu_add_action("/Settings/Bluetooth/Connected", bt_list_connected_devices);
 }
